@@ -1,0 +1,36 @@
+{
+  "name": "frontend",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "type-check": "nuxt typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@nuxt/icon": "^2.6.2",
+    "bwip-js": "^4.11.4",
+    "chart.js": "^4.6.1",
+    "idb": "^8.0.4",
+    "lucide-vue-next": "^1.0.0",
+    "nuxt": "^4.6.3",
+    "vue": "^3.5.44",
+    "vue-chartjs": "^5.3.4",
+    "vue-router": "^5.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@vitejs/plugin-vue": "^6.0.10",
+    "@vue/test-utils": "^2.5.1",
+    "fake-indexeddb": "^6.2.7",
+    "happy-dom": "^21.0.4",
+    "sass": "^1.107.0",
+    "vitest": "^5.0.5",
+    "vue-tsc": "^3.3.14"
+  }
+}
