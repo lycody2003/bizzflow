@@ -1,9 +1,9 @@
-
 export interface AuthUser {
   _id: string
   firstName: string
   lastName: string
   email: string
+  avatarUrl: string | null
   status: 'active' | 'inactive' | 'suspended'
   lastLoginAt?: string | null
   createdAt: string

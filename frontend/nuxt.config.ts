@@ -38,7 +38,6 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     public: {
-      appMode: process.env.NUXT_PUBLIC_APP_MODE || "demo",
       apiBase:
         process.env.NUXT_PUBLIC_API_BASE || "http://localhost:5050/api/v1",
     },

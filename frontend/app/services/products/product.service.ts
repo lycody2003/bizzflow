@@ -1,5 +1,4 @@
 
-import demoProductRepository from '../../providers/demo/repositories/product.repository'
 
 import type {
   Product,
@@ -12,7 +11,7 @@ import type {
   ProductRepository,
 } from '../../repositories/contracts/product.repository'
 
-class ProductService {
+export class ProductService {
   constructor(
     private readonly repository: ProductRepository,
   ) {}
@@ -217,4 +216,3 @@ class ProductService {
   }
 }
 
-export default new ProductService(demoProductRepository)

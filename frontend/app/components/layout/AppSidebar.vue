@@ -1,5 +1,16 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
+import useAuthStore from '@stores/auth.store'
+
+const authStore = useAuthStore()
+
+const user = computed(() => authStore.user.value)
+
+const fullName = computed(() => {
+  if (!user.value) return 'Unknown User'
+
+  return `${user.value.firstName} ${user.value.lastName}`
+})
 
 const route = useRoute()
 
@@ -17,18 +28,42 @@ interface NavigationItem {
 }
 
 const mainNavigation: NavigationItem[] = [
-  { label: 'Dashboard', path: '/', icon: 'D' },
-  { label: 'Products', path: '/products', icon: 'P' },
-  { label: 'Inventory', path: '/inventory', icon: 'I' },
-  { label: 'Sales', path: '/sales', icon: 'S' },
-  { label: 'Purchases', path: '/purchases', icon: 'P' },
-  { label: 'Customers', path: '/customers', icon: 'C' },
-  { label: 'Reports', path: '/reports', icon: 'R' },
+  { label: 'Dashboard', path: '/', icon: 'layout-dashboard' },
+  { label: 'Products', path: '/products', icon: 'package' },
+  { label: 'Categories', path: '/categories', icon: 'tags' },
+  { label: 'Inventory', path: '/inventory', icon: 'warehouse' },
+  { label: 'Sales', path: '/sales', icon: 'shopping-cart' },
+  { label: 'Purchases', path: '/purchases', icon: 'shopping-bag' },
+  { label: 'Customers', path: '/customers', icon: 'users' },
+  { label: 'Reports', path: '/reports', icon: 'chart-no-axes-combined' },
 ]
 
-const bottomNavigation: NavigationItem[] = [
-  { label: 'Settings', path: '/settings', icon: 'S' },
+const settingsChildren: NavigationItem[] = [
+  { label: 'User Account', path: '/settings/users', icon: 'users' },
+  { label: 'Business Account', path: '/settings/business', icon: 'building-2' },
+  { label: 'Units Setup', path: '/settings/units', icon: 'ruler' },
+  { label: 'Roles', path: '/settings/roles', icon: 'shield-check' },
+  { label: 'Permissions', path: '/settings/permissions', icon: 'lock-keyhole' },
+  { label: 'Currency Setup', path: '/settings/currency', icon: 'coins' },
 ]
+
+const isSettingsRoute = computed(() => route.path.startsWith('/settings'))
+
+const isSettingsExpanded = ref(isSettingsRoute.value)
+
+watch(isSettingsRoute, (active) => {
+  if (active) {
+    isSettingsExpanded.value = true
+  }
+})
+
+const toggleSettings = () => {
+  if (isCollapsed.value && !isMobileOpen.value) {
+    return
+  }
+
+  isSettingsExpanded.value = !isSettingsExpanded.value
+}
 
 const isActive = (path: string) => {
   if (path === '/') {
@@ -59,6 +94,7 @@ const handleToggle = () => {
 
 <template>
   <aside class="app-sidebar" :class="sidebarClasses">
+    <!-- Sidebar Header -->
     <div class="sidebar-header">
       <NuxtLink to="/" class="brand" @click="handleNavigation">
         <span class="brand-icon">B</span>
@@ -73,37 +109,86 @@ const handleToggle = () => {
       </button>
     </div>
 
+    <!-- Sidebar Content -->
     <div class="sidebar-content">
+      <!-- Main Navigation -->
       <div class="navigation-section">
         <p v-if="!isCollapsed || isMobileOpen" class="section-label">
           WORKSPACE
         </p>
 
         <nav class="navigation-list">
-          <NuxtLink v-for="item in mainNavigation" :key="item.path" :to="item.path" class="navigation-item"
-            :class="{ active: isActive(item.path) }" :title="isCollapsed && !isMobileOpen ? item.label : undefined"
-            @click="handleNavigation">
-            <span class="navigation-icon">{{ item.icon }}</span>
-
+          <NuxtLink
+            v-for="item in mainNavigation"
+            :key="item.path"
+            :to="item.path"
+            class="navigation-item"
+            :class="{ active: isActive(item.path) }"
+            :title="isCollapsed && !isMobileOpen ? item.label : undefined"
+            :aria-label="item.label"
+            @click="handleNavigation"
+          >
+            <Icon :name="`lucide:${item.icon}`" class="navigation-icon" />
             <span v-if="!isCollapsed || isMobileOpen" class="navigation-label">
               {{ item.label }}
             </span>
           </NuxtLink>
+
+          <button
+            type="button"
+            class="navigation-item settings-toggle"
+            :class="{ active: isSettingsRoute }"
+            :title="isCollapsed && !isMobileOpen ? 'Settings' : undefined"
+            :aria-expanded="isSettingsExpanded"
+            aria-controls="settings-submenu"
+            @click="toggleSettings"
+          >
+            <Icon name="lucide:settings" class="navigation-icon" />
+            <span v-if="!isCollapsed || isMobileOpen" class="navigation-label">
+              Settings
+            </span>
+            <Icon
+              v-if="!isCollapsed || isMobileOpen"
+              :name="isSettingsExpanded ? 'lucide:chevron-down' : 'lucide:chevron-right'"
+              class="submenu-chevron"
+            />
+          </button>
+
+          <div
+            v-if="isSettingsExpanded && (!isCollapsed || isMobileOpen)"
+            id="settings-submenu"
+            class="settings-submenu"
+          >
+            <NuxtLink
+              v-for="item in settingsChildren"
+              :key="item.path"
+              :to="item.path"
+              class="navigation-item submenu-item"
+              :class="{ active: isActive(item.path) }"
+              @click="handleNavigation"
+            >
+              <Icon :name="`lucide:${item.icon}`" class="navigation-icon" />
+              <span class="navigation-label">{{ item.label }}</span>
+            </NuxtLink>
+          </div>
         </nav>
       </div>
 
-      <div class="navigation-section bottom-section">
-        <nav class="navigation-list">
-          <NuxtLink v-for="item in bottomNavigation" :key="item.path" :to="item.path" class="navigation-item"
-            :class="{ active: isActive(item.path) }" :title="isCollapsed && !isMobileOpen ? item.label : undefined"
-            @click="handleNavigation">
-            <span class="navigation-icon">{{ item.icon }}</span>
+      <!-- Bottom Navigation and User Profile -->
+      <div class="sidebar-bottom">
+        <!-- User Profile -->
+        <div class="sidebar-user">
+          <div class="sidebar-user-avatar">
+            <img v-if="user?.avatarUrl" :src="user.avatarUrl" alt="User avatar" />
 
-            <span v-if="!isCollapsed || isMobileOpen" class="navigation-label">
-              {{ item.label }}
-            </span>
-          </NuxtLink>
-        </nav>
+            <Icon v-else name="lucide:user-round" size="20" />
+          </div>
+
+          <div v-if="!isCollapsed || isMobileOpen" class="sidebar-user-info">
+            <strong>{{ fullName }}</strong>
+            <span>{{ user?.email || 'Account information unavailable' }}</span>
+          </div>
+        </div>
       </div>
     </div>
   </aside>
@@ -154,6 +239,12 @@ const handleToggle = () => {
   .navigation-item {
     justify-content: center;
     padding: 0;
+  }
+
+  .sidebar-user {
+    justify-content: center;
+    padding-right: 0;
+    padding-left: 0;
   }
 }
 
@@ -214,13 +305,58 @@ const handleToggle = () => {
   }
 }
 
+.settings-toggle {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.submenu-chevron {
+  width: 16px;
+  height: 16px;
+  margin-left: auto;
+  flex-shrink: 0;
+  color: #aebdd5;
+}
+
+.settings-submenu {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 2px 0 6px 20px;
+  padding-left: 8px;
+  border-left: 1px solid rgb(255 255 255 / 18%);
+}
+
+.navigation-item.submenu-item {
+  min-height: 38px;
+  gap: 10px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.navigation-item.submenu-item .navigation-icon {
+  width: 17px;
+  height: 17px;
+}
+
 .sidebar-content {
   flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   min-height: 0;
+  overflow-y: auto;
   padding: 25px 10px 12px;
+}
+
+.sidebar-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .section-label {
@@ -238,7 +374,7 @@ const handleToggle = () => {
 }
 
 .navigation-item {
-  min-height: 39px;
+  min-height: 42px;
   display: flex;
   align-items: center;
   gap: 13px;
@@ -262,11 +398,11 @@ const handleToggle = () => {
 }
 
 .navigation-icon {
-  width: 14px;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
-  text-align: center;
-  font-size: 12px;
-  font-weight: 750;
+  color: currentColor;
+  stroke-width: 1.8;
 }
 
 .navigation-label {
@@ -276,6 +412,60 @@ const handleToggle = () => {
 .bottom-section {
   padding-top: 12px;
   border-top: 1px solid rgb(255 255 255 / 9%);
+}
+
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px 8px 6px;
+  border-top: 1px solid rgb(255 255 255 / 9%);
+}
+
+.sidebar-user-avatar {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #354c85;
+  color: #fff;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    box-shadow: 0 0 0 1px #d9e1ef;
+    border: 2px solid #ffffff;
+    background: #e8efff;
+  }
+}
+
+.sidebar-user-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  strong,
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  strong {
+    color: #fff;
+    font-size: 12px;
+  }
+
+  span {
+    color: #aebdd5;
+    font-size: 10px;
+  }
 }
 
 @media (max-width: 768px) {
@@ -304,6 +494,12 @@ const handleToggle = () => {
     .navigation-item {
       justify-content: flex-start;
       padding: 0 15px;
+    }
+
+    .sidebar-user {
+      justify-content: flex-start;
+      padding-right: 8px;
+      padding-left: 8px;
     }
   }
 

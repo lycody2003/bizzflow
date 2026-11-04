@@ -1,4 +1,3 @@
-
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue'
 
@@ -94,17 +93,9 @@ onBeforeUnmount(clearPreview)
 <template>
   <section class="logo-section">
     <div class="logo-preview">
-      <img
-        v-if="previewUrl || logoUrl"
-        :src="previewUrl || logoUrl || undefined"
-        alt="Business logo"
-      >
+      <img v-if="previewUrl || logoUrl" :src="previewUrl || logoUrl || undefined" alt="Business logo">
 
-      <Icon
-        v-else
-        name="lucide:image"
-        size="28"
-      />
+      <Icon v-else name="lucide:image" size="28" />
     </div>
 
     <div class="logo-content">
@@ -115,56 +106,26 @@ onBeforeUnmount(clearPreview)
       </p>
 
       <div class="logo-actions">
-        <input
-          ref="fileInput"
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          hidden
-          @change="handleFileChange"
-        >
+        <input ref="fileInput" type="file" accept="image/jpeg,image/png,image/webp" hidden @change="handleFileChange">
 
-        <button
-          type="button"
-          class="secondary-button"
-          :disabled="busy"
-          @click="selectFile"
-        >
+        <button type="button" class="secondary-button" :disabled="busy" @click="selectFile">
           <Icon name="lucide:upload" />
           {{ logoUrl ? 'Change Logo' : 'Choose Logo' }}
         </button>
 
-        <button
-          v-if="logoUrl && !previewUrl"
-          type="button"
-          class="text-danger-button"
-          :disabled="busy"
-          @click="emit('remove')"
-        >
+        <button v-if="logoUrl && !previewUrl" type="button" class="text-danger-button" :disabled="busy"
+          @click="emit('remove')">
           Remove
         </button>
       </div>
 
       <div v-if="previewUrl" class="preview-actions">
-        <button
-          type="button"
-          class="primary-button"
-          :disabled="busy"
-          @click="uploadSelectedFile"
-        >
-          <Icon
-            v-if="uploading"
-            name="lucide:loader-circle"
-            class="spin"
-          />
+        <button type="button" class="primary-button" :disabled="busy" @click="uploadSelectedFile">
+          <Icon v-if="uploading" name="lucide:loader-circle" class="spin" />
           {{ uploading ? 'Uploading...' : 'Save Logo' }}
         </button>
 
-        <button
-          type="button"
-          class="secondary-button"
-          :disabled="busy"
-          @click="cancelSelection"
-        >
+        <button type="button" class="secondary-button" :disabled="busy" @click="cancelSelection">
           Cancel
         </button>
       </div>
@@ -200,6 +161,8 @@ onBeforeUnmount(clearPreview)
     width: 100%;
     height: 100%;
     object-fit: contain;
+    border: 2px solid #e5e7eb;
+    box-shadow: 0 0 0 3px #f9fafb;
   }
 }
 

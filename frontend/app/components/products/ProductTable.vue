@@ -1,17 +1,14 @@
-
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed } from 'vue'
 
 import BaseDataTable from '@components/data-table/BaseDataTable.vue'
 import ProductBarcode from '@components/products/ProductBarcode.vue'
-
-import productImageService from '@services/products/product-image.service'
-import dashboard from '@composables/useDashboard'
-
 import type { Product } from '@app-types/product'
+import type { Category } from '@app-types/category'
 
 const props = defineProps<{
   products: Product[]
+  categories?: Category[]
   loading?: boolean
   saving?: boolean
 }>()
@@ -29,79 +26,34 @@ const selectedProductIds = defineModel<string[]>('selectedIds', {
   default: () => [],
 })
 
-const businessId = dashboard.selectedBusinessIdValue
+const categoryNames = computed<Record<string, string>>(() => {
+  const names: Record<string, string> = {}
 
-const imageUrls = ref<Record<string, string>>({})
-
-let imageRequestId = 0
-
-function revokeImageUrls() {
-  Object.values(imageUrls.value).forEach((url) => {
-    URL.revokeObjectURL(url)
-  })
-
-  imageUrls.value = {}
-}
-
-async function loadProductImages() {
-  const currentRequestId = ++imageRequestId
-
-  revokeImageUrls()
-
-  const currentBusinessId = businessId.value
-
-  if (!currentBusinessId || props.products.length === 0) {
-    return
+  for (const category of props.categories ?? []) {
+    names[category.id] = category.name
   }
 
-  const results = await Promise.all(
-    props.products.map(async (product) => {
-      try {
-        const image = await productImageService.getImage(
-          product.id,
-          currentBusinessId,
-        )
+  return names
+})
 
-        return {
-          productId: product.id,
-          blob: image?.blob ?? null,
-        }
-      } catch {
-        return {
-          productId: product.id,
-          blob: null,
-        }
-      }
-    }),
-  )
+function getCategoryName(product: Product): string {
+  if (!product.categoryId) {
+    return 'Uncategorized'
+  }
 
-  if (currentRequestId !== imageRequestId) return
+  return categoryNames.value[product.categoryId] ?? 'Category unavailable'
+}
 
+const imageUrls = computed<Record<string, string>>(() => {
   const urls: Record<string, string> = {}
 
-  for (const result of results) {
-    if (result.blob) {
-      urls[result.productId] = URL.createObjectURL(result.blob)
+  for (const product of props.products) {
+    if (product.imageUrl) {
+      urls[product.id] = product.imageUrl
     }
   }
 
-  imageUrls.value = urls
-}
-
-watch(
-  [
-    () => props.products,
-    businessId,
-  ],
-  () => {
-    void loadProductImages()
-  },
-  { immediate: true },
-)
-
-onBeforeUnmount(() => {
-  imageRequestId++
-  revokeImageUrls()
+  return urls
 })
 
 const allVisibleSelected = computed(() =>
@@ -177,23 +129,14 @@ function getStockClass(product: Product): string {
 </script>
 
 <template>
-  <BaseDataTable
-    min-width="1350px"
-    :loading="loading"
-    :empty="products.length === 0"
-    empty-title="No products found"
-    empty-message="Try changing your search or filters."
-  >
+  <BaseDataTable min-width="1350px" :loading="loading" :empty="products.length === 0" empty-title="No products found"
+    empty-message="Try changing your search or filters.">
     <thead>
       <tr>
         <th class="checkbox-column">
-          <input
-            type="checkbox"
-            :checked="allVisibleSelected"
-            :indeterminate="someVisibleSelected && !allVisibleSelected"
-            aria-label="Select all visible products"
-            @change="toggleSelectAll"
-          />
+          <input type="checkbox" :checked="allVisibleSelected"
+            :indeterminate="someVisibleSelected && !allVisibleSelected" aria-label="Select all visible products"
+            @change="toggleSelectAll" />
         </th>
 
         <th class="product-column">Product</th>
@@ -208,43 +151,28 @@ function getStockClass(product: Product): string {
     </thead>
 
     <tbody>
-      <tr
-        v-for="product in products"
-        :key="product.id"
-      >
+      <tr v-for="product in products" :key="product.id">
         <td class="checkbox-column">
-          <input
-            type="checkbox"
-            :checked="selectedProductIds.includes(product.id)"
-            :aria-label="`Select ${product.name || 'product'}`"
-            @change="toggleSelection(product.id)"
-          />
+          <input type="checkbox" :checked="selectedProductIds.includes(product.id)"
+            :aria-label="`Select ${product.name || 'product'}`" @change="toggleSelection(product.id)" />
         </td>
 
         <td class="product-column">
           <div class="product-cell">
             <div class="product-image">
-              <img
-                v-if="imageUrls[product.id]"
-                :src="imageUrls[product.id]"
-                :alt="product.name || 'Product image'"
-                loading="lazy"
-              />
+              <img v-if="imageUrls[product.id]" :src="imageUrls[product.id]" :alt="product.name || 'Product image'"
+                loading="lazy" />
 
-              <Icon
-                v-else
-                name="lucide:package"
-                class="product-placeholder-icon"
-              />
+              <Icon v-else name="lucide:package" class="product-placeholder-icon" />
             </div>
 
             <div class="product-info">
               <span class="product-name">
-                {{ product.name || 'Name unavailable' }}
+                category : {{ product.name || 'Name unavailable' }}
               </span>
 
               <small class="product-category">
-                {{ product.categoryId || 'Uncategorized' }}
+                category : {{ getCategoryName(product) }}
               </small>
             </div>
           </div>
@@ -258,11 +186,8 @@ function getStockClass(product: Product): string {
 
         <td class="barcode-column">
           <div class="barcode-cell">
-            <ProductBarcode
-              v-if="product.barcode && product.barcodeType"
-              :value="product.barcode"
-              :type="product.barcodeType"
-            />
+            <ProductBarcode v-if="product.barcode && product.barcodeType" :value="product.barcode"
+              :type="product.barcodeType" />
 
             <span v-else class="empty-value">
               —
@@ -291,12 +216,10 @@ function getStockClass(product: Product): string {
               <small>{{ product.unit }}</small>
             </strong>
 
-            <span
-              :class="[
-                'stock-status',
-                getStockClass(product),
-              ]"
-            >
+            <span :class="[
+              'stock-status',
+              getStockClass(product),
+            ]">
               {{ getStockStatus(product) }}
             </span>
           </div>
@@ -311,50 +234,25 @@ function getStockClass(product: Product): string {
 
         <td class="actions-column">
           <div class="row-actions">
-            <button
-              type="button"
-              class="icon-action view-action"
-              title="View product"
-              aria-label="View product"
-              :disabled="saving"
-              @click="emit('view', product)"
-            >
+            <button type="button" class="icon-action view-action" title="View product" aria-label="View product"
+              :disabled="saving" @click="emit('view', product)">
               <Icon name="lucide:eye" />
             </button>
 
             <template v-if="product.status === 'active'">
-              <button
-                type="button"
-                class="icon-action edit-action"
-                title="Edit product"
-                aria-label="Edit product"
-                :disabled="saving"
-                @click="emit('edit', product)"
-              >
+              <button type="button" class="icon-action edit-action" title="Edit product" aria-label="Edit product"
+                :disabled="saving" @click="emit('edit', product)">
                 <Icon name="lucide:pencil" />
               </button>
 
-              <button
-                type="button"
-                class="icon-action archive-action"
-                title="Archive product"
-                aria-label="Archive product"
-                :disabled="saving"
-                @click="emit('archive', product)"
-              >
+              <button type="button" class="icon-action archive-action" title="Archive product"
+                aria-label="Archive product" :disabled="saving" @click="emit('archive', product)">
                 <Icon name="lucide:archive" />
               </button>
             </template>
 
-            <button
-              v-else
-              type="button"
-              class="icon-action restore-action"
-              title="Restore product"
-              aria-label="Restore product"
-              :disabled="saving"
-              @click="emit('restore', product)"
-            >
+            <button v-else type="button" class="icon-action restore-action" title="Restore product"
+              aria-label="Restore product" :disabled="saving" @click="emit('restore', product)">
               <Icon name="lucide:archive-restore" />
             </button>
           </div>

@@ -1,48 +1,78 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { DashboardStat } from '../../types/dashboard'
 
-const props = defineProps<{
-  stat: DashboardStat
-}>()
+interface Props {
+  title: string
+  value?: number
+  currencyValues?: {
+    USD: number
+    KHR: number
+  }
+  description: string
+  icon: string
+  variant: 'blue' | 'green' | 'orange' | 'purple'
+  currency?: 'USD' | 'KHR'
+}
+
+const props = defineProps<Props>()
 
 const formattedValue = computed(() => {
-  if (props.stat.valueType === 'currency' && props.stat.currency) {
+  if (props.value === undefined) return ''
+
+  if (props.currency) {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: props.stat.currency,
-      maximumFractionDigits: props.stat.currency === 'KHR' ? 0 : 2,
-    }).format(props.stat.value)
+      currency: props.currency,
+      maximumFractionDigits: props.currency === 'KHR' ? 0 : 2,
+    }).format(props.value)
   }
 
-  return new Intl.NumberFormat('en-US').format(props.stat.value)
+  return new Intl.NumberFormat('en-US').format(props.value)
+})
+
+const formattedCurrencyValues = computed(() => {
+  if (!props.currencyValues) return []
+
+  return [
+    {
+      currency: 'USD',
+      value: new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+      }).format(props.currencyValues.USD),
+    },
+    {
+      currency: 'KHR',
+      value: `KHR ${new Intl.NumberFormat('en-US', {
+        maximumFractionDigits: 0,
+      }).format(props.currencyValues.KHR)}`,
+    },
+  ]
 })
 </script>
 
 <template>
   <article class="stat-card">
     <div class="stat-header">
-      <div class="stat-icon" :class="`icon-${stat.variant}`">
-        {{ stat.icon }}
+      <div class="stat-icon" :class="`icon-${variant}`">
+        {{ icon }}
       </div>
-
-      <span
-        class="stat-change"
-        :class="stat.change >= 0 ? 'positive' : 'negative'"
-      >
-        {{ stat.change >= 0 ? '+' : '' }}{{ stat.change }}%
-      </span>
     </div>
 
     <div class="stat-content">
-      <span class="stat-title">{{ stat.title }}</span>
-
-      <strong class="stat-value">{{ formattedValue }}</strong>
-
-      <span class="stat-description">
-        {{ stat.description }}
-      </span>
+      <span class="stat-title">{{ title }}</span>
+      <div v-if="props.currencyValues" class="stat-currency-values">
+        <strong
+          v-for="item in formattedCurrencyValues"
+          :key="item.currency"
+          class="stat-value"
+        >
+          {{ item.value }}
+        </strong>
+      </div>
+      <strong v-else class="stat-value">{{ formattedValue }}</strong>
+      <span class="stat-description">{{ description }}</span>
     </div>
   </article>
 </template>
@@ -138,6 +168,12 @@ const formattedValue = computed(() => {
   letter-spacing: -0.7px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.stat-currency-values {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .stat-description {

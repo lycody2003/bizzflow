@@ -1,10 +1,11 @@
 
 <script setup lang="ts">
+const productImageService = useProductImageService()
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
-import productService from '@services/products/product.service'
-import productImageService from '@services/products/product-image.service'
-import dashboard from '@composables/useDashboard'
+
+import useProductImageService from '@services/products/product-image.service'
+import useBusiness from '@composables/useBusiness'
 
 import ProductForm from '@components/products/ProductForm.vue'
 import ProductSearch from '@components/products/ProductSearch.vue'
@@ -17,6 +18,8 @@ import type {
   CreateProductInput,
   UpdateProductInput,
 } from '@app-types/product'
+
+import type { Category } from '@app-types/category'
 
 interface ProductFormSubmitPayload {
   data: CreateProductInput
@@ -74,14 +77,12 @@ const currentPage = ref(1)
 const pageSize = ref(10)
 const selectedProductIds = ref<string[]>([])
 
-const businessId = dashboard.selectedBusinessIdValue
+const { business, loadBusiness } = useBusiness()
+const businessId = computed(() => business.value?.id ?? '')
 
-const categories = [
-  { id: 'electronics', name: 'Electronics' },
-  { id: 'food-beverage', name: 'Food & Beverage' },
-  { id: 'accessories', name: 'Accessories' },
-  { id: 'general', name: 'General' },
-]
+const categories = ref<Category[]>([])
+const loadingCategories = ref(false)
+let categoryRequestId = 0
 
 let requestId = 0
 
@@ -220,6 +221,46 @@ const confirmationVariant = computed(() =>
   confirmationAction.value === 'restore' ? 'success' : 'danger',
 )
 
+async function loadCategories() {
+  const currentRequestId = ++categoryRequestId
+  const currentBusinessId = businessId.value
+
+  if (!currentBusinessId) {
+    categories.value = []
+    loadingCategories.value = false
+    return
+  }
+
+  loadingCategories.value = true
+
+  try {
+    const result = await $categoryService.getCategories(
+      currentBusinessId,
+      'all',
+    )
+
+    if (
+      currentRequestId !== categoryRequestId ||
+      businessId.value !== currentBusinessId
+    ) {
+      return
+    }
+
+    categories.value = result
+  } catch (err) {
+    if (currentRequestId !== categoryRequestId) return
+
+    categories.value = []
+    error.value = err instanceof Error
+      ? `Unable to load categories: ${err.message}`
+      : 'Unable to load categories.'
+  } finally {
+    if (currentRequestId === categoryRequestId) {
+      loadingCategories.value = false
+    }
+  }
+}
+
 async function loadProducts() {
   const currentRequestId = ++requestId
   const currentBusinessId = businessId.value
@@ -262,7 +303,7 @@ async function initializeProducts() {
   error.value = null
 
   try {
-    await dashboard.loadDashboard()
+    await loadBusiness()
     initialized.value = true
 
     if (!businessId.value) {
@@ -271,7 +312,10 @@ async function initializeProducts() {
       return
     }
 
-    await loadProducts()
+    await Promise.all([
+      loadProducts(),
+      loadCategories(),
+    ])
   } catch (err) {
     error.value = err instanceof Error
       ? err.message
@@ -309,9 +353,8 @@ async function openEditForm(product: Product) {
       return
     }
 
-    initialImageUrl.value = image
-      ? URL.createObjectURL(image.blob)
-      : null
+    initialImageUrl.value = image?.imageUrl ??
+      (image?.blob ? URL.createObjectURL(image.blob) : null)
 
     showProductForm.value = true
   } catch (err) {
@@ -613,6 +656,7 @@ watch(businessId, () => {
     successMessage.value = null
 
     void loadProducts()
+    void loadCategories()
   }
 })
 
@@ -626,8 +670,15 @@ onMounted(initializeProducts)
 
 onBeforeUnmount(() => {
   imageRequestId++
+  categoryRequestId++
   revokeInitialImageUrl()
 })
+
+const {
+  $productService: productService,
+  $categoryService,
+} = useNuxtApp()
+
 </script>
 
 <template>
@@ -710,6 +761,7 @@ onBeforeUnmount(() => {
       <ProductTable
         v-model:selected-ids="selectedProductIds"
         :products="paginatedProducts"
+        :categories="categories"
         :loading="loading"
         :saving="saving"
         @view="navigateTo(`/products/${$event.id}`)"
@@ -737,6 +789,7 @@ onBeforeUnmount(() => {
       :submitting="saving"
       :initial-product="editingProduct"
       :initial-image-url="initialImageUrl"
+      :categories="categories"
       @submit="editingProduct
         ? handleUpdateProduct($event)
         : handleCreateProduct($event)"

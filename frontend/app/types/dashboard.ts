@@ -66,3 +66,22 @@ export interface DashboardLowStockProduct {
   minimumStock: number;
   unit: string;
 }
+
+export interface DashboardSalesResponse {
+  currency: DashboardCurrency;
+  data: SalesChartData[];
+}
+
+export interface DashboardCurrencyValues {
+  USD: number;
+  KHR: number;
+}
+
+export interface DashboardOverview {
+  totalProducts: number;
+  activeProducts: number;
+  lowStockProducts: number;
+  outOfStockProducts: number;
+  inventoryCostValue: DashboardCurrencyValues;
+  potentialSalesValue: DashboardCurrencyValues;
+}

@@ -5,6 +5,7 @@ import {
   onBeforeUnmount,
   reactive,
   ref,
+  watch,
 } from 'vue'
 
 import {
@@ -26,6 +27,8 @@ import type {
   Product,
 } from '@app-types/product'
 
+import type { Category } from '@app-types/category'
+
 type BarcodeMode = 'auto' | 'manual' | 'none'
 
 interface ProductFormSubmitPayload {
@@ -39,6 +42,7 @@ const props = defineProps<{
   submitting: boolean
   initialProduct?: Product | null
   initialImageUrl?: string | null
+  categories?: Category[]
 }>()
 
 const emit = defineEmits<{
@@ -81,12 +85,36 @@ const barcodeMode = ref<BarcodeMode>(
       : 'manual',
 )
 
-const categories = [
-  { id: 'electronics', name: 'Electronics' },
-  { id: 'food-beverage', name: 'Food & Beverage' },
-  { id: 'accessories', name: 'Accessories' },
-  { id: 'general', name: 'General' },
-]
+const availableCategories = computed(() => {
+  const activeCategories = props.categories?.filter(
+    category => category.isActive,
+  ) ?? []
+
+  const currentCategoryId = props.initialProduct?.categoryId
+
+  if (!currentCategoryId) {
+    return activeCategories
+  }
+
+  const currentCategory = props.categories?.find(
+    category => category.id === currentCategoryId,
+  )
+
+  if (currentCategory && !currentCategory.isActive) {
+    return [...activeCategories, currentCategory]
+  }
+
+  return activeCategories
+})
+
+const hasLegacyCategory = computed(() => {
+  const currentCategoryId = props.initialProduct?.categoryId
+
+  return Boolean(
+    currentCategoryId &&
+    !props.categories?.some(category => category.id === currentCategoryId),
+  )
+})
 
 function generateInternalBarcode(): string {
   return `BF${crypto.randomUUID().replaceAll('-', '').slice(0, 12).toUpperCase()}`
@@ -98,7 +126,7 @@ const form = reactive({
   barcode: props.initialProduct?.barcode ?? generateInternalBarcode(),
   barcodeType: (props.initialProduct?.barcodeType ?? 'CODE128') as BarcodeType,
   description: props.initialProduct?.description ?? '',
-  categoryId: props.initialProduct?.categoryId ?? 'general',
+  categoryId: props.initialProduct?.categoryId ?? '',
   type: (props.initialProduct?.type ?? 'standard') as ProductType,
   unit: props.initialProduct?.unit ?? 'piece',
   costPrice: props.initialProduct?.costPrice ?? 0,
@@ -106,6 +134,22 @@ const form = reactive({
   currency: (props.initialProduct?.currency ?? 'USD') as ProductCurrency,
   minimumStock: props.initialProduct?.minimumStock ?? 0,
 })
+
+watch(
+  () => props.categories,
+  (categories) => {
+    if (props.initialProduct || form.categoryId) return
+
+    const firstActiveCategory = categories?.find(
+      category => category.isActive,
+    )
+
+    if (firstActiveCategory) {
+      form.categoryId = firstActiveCategory.id
+    }
+  },
+  { immediate: true },
+)
 
 function openImagePicker() {
   if (props.submitting) return
@@ -348,7 +392,7 @@ onBeforeUnmount(() => {
             >
               <ImagePlus :size="32" :stroke-width="1.5" />
               <strong>No product image</strong>
-              <span>Upload an image for this product</span>
+              <span>upload an image for this product</span>
             </div>
 
             <div class="image-upload-actions">
@@ -418,16 +462,30 @@ onBeforeUnmount(() => {
                 required
                 :disabled="props.submitting"
               >
+                <option value="" disabled>
+                  Select a category
+                </option>
+
                 <option
-                  v-for="category in categories"
+                  v-for="category in availableCategories"
                   :key="category.id"
                   :value="category.id"
                 >
-                  {{ category.name }}
+                  {{ category.name }}{{ !category.isActive ? ' (Inactive)' : '' }}
+                </option>
+
+                <option
+                  v-if="hasLegacyCategory"
+                  :value="props.initialProduct?.categoryId"
+                >
+                  Existing legacy category
                 </option>
               </select>
 
-              <small>Temporary demo categories</small>
+              <small v-if="availableCategories.length === 0 && !hasLegacyCategory">
+                No active categories available. Create a category before adding a product.
+              </small>
+
             </div>
 
             <div class="field">
@@ -905,6 +963,7 @@ form {
 
   span {
     font-size: 10px;
+    text-align: center;
   }
 }
 

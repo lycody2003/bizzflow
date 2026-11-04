@@ -1,4 +1,3 @@
-
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import useAuthStore from '../../stores/auth.store'
@@ -52,6 +51,10 @@ const handleLogout = async (): Promise<void> => {
   await authStore.logout()
 }
 
+const userAvatar = computed(() => {
+  return authStore.user.value?.avatarUrl || null
+})
+
 onMounted(() => {
   document.addEventListener('click', handleOutsideClick)
   document.addEventListener('keydown', handleEscapeKey)
@@ -64,20 +67,15 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div
-    ref="menuRef"
-    class="user-menu"
-  >
-    <button
-      type="button"
-      class="profile-button"
-      :aria-expanded="isOpen"
-      aria-haspopup="true"
-      aria-label="Open user menu"
-      @click="toggleMenu"
-    >
+  <div ref="menuRef" class="user-menu">
+    <button type="button" class="profile-button" :aria-expanded="isOpen" aria-haspopup="true"
+      aria-label="Open user menu" @click="toggleMenu">
       <div class="profile-avatar">
-        {{ userInitial }}
+        <img v-if="userAvatar" :src="userAvatar" :alt="`${userName} avatar`" class="profile-avatar-image">
+
+        <span v-else>
+          {{ userInitial }}
+        </span>
       </div>
 
       <div class="profile-info">
@@ -89,47 +87,29 @@ onBeforeUnmount(() => {
           Account
         </span>
       </div>
-
-      <span class="profile-chevron">
-        {{ isOpen ? '⌃' : '⌄' }}
-      </span>
     </button>
 
     <Transition name="dropdown">
-      <div
-        v-if="isOpen"
-        class="dropdown-menu"
-      >
-        <div class="dropdown-user">
-          <div class="profile-avatar">
-            {{ userInitial }}
-          </div>
+      <div v-if="isOpen" class="dropdown-menu">
+        <div class="profile-avatar">
+          <img v-if="userAvatar" :src="userAvatar" :alt="`${userName} avatar`" class="profile-avatar-image">
 
-          <div class="dropdown-user-info">
-            <strong>{{ userName }}</strong>
-            <span>{{ userEmail }}</span>
-          </div>
+          <span v-else>
+            {{ userInitial }}
+          </span>
         </div>
 
         <div class="dropdown-divider" />
 
-        <NuxtLink
-          to="/settings"
-          class="dropdown-item"
-          @click="closeMenu"
-        >
+        <NuxtLink to="/settings/users" class="dropdown-item" @click="closeMenu">
           <span class="dropdown-icon">⚙</span>
           Account Settings
         </NuxtLink>
 
         <div class="dropdown-divider" />
 
-        <button
-          type="button"
-          class="dropdown-item logout-item"
-          :disabled="authStore.isLoading.value"
-          @click="handleLogout"
-        >
+        <button type="button" class="dropdown-item logout-item" :disabled="authStore.isLoading.value"
+          @click="handleLogout">
           <span class="dropdown-icon">↪</span>
 
           {{ authStore.isLoading.value ? 'Signing out...' : 'Sign out' }}
@@ -296,7 +276,33 @@ onBeforeUnmount(() => {
   transform: translateY(-5px);
 }
 
+.profile-avatar {
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  background: #e8efff;
+  color: #4169d8;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 0 0 1px #d9e1ef;
+}
+
+.profile-avatar-image {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
 @media (max-width: 768px) {
+
   .profile-info,
   .profile-chevron {
     display: none;

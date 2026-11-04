@@ -6,6 +6,8 @@ export interface UserDocument extends Document {
   email: string;
   passwordHash: string;
   businessId: Types.ObjectId;
+  avatarUrl: string | null;
+  avatarPublicId: string | null;
   status: "active" | "inactive" | "suspended";
   lastLoginAt?: Date | null;
   createdAt: Date;
@@ -48,6 +50,16 @@ const userSchema = new Schema<UserDocument>(
       ref: "Business",
       required: true,
       index: true,
+    },
+
+    avatarUrl: {
+      type: String,
+      default: null,
+    },
+
+    avatarPublicId: {
+      type: String,
+      default: null,
     },
 
     status: {

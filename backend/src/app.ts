@@ -10,6 +10,11 @@ import healthRoutes from "@routes/v1/health.routes";
 import authRoutes from "@routes/v1/auth.routes";
 import csrfRoutes from "@routes/v1/csrf.routes";
 import businessRoutes from "@routes/v1/business.routes";
+import userRoutes from "@routes/v1/user.routes";
+import productRoutes from "@routes/v1/product.routes";
+import categoryRoutes from "@routes/v1/category.routes";
+import unitRoutes from "@routes/v1/unit.routes";
+import dashboardRoutes from "@routes/v1/dashboard.routes";
 
 import notFoundMiddleware from "@middlewares/not-found.middleware";
 import errorMiddleware from "@middlewares/error.middleware";
@@ -45,6 +50,11 @@ class App {
     this.app.use(`${configEnv.API_BASE_PATH}/csrf`, csrfRoutes);
     this.app.use(`${configEnv.API_BASE_PATH}/auth`, authRoutes);
     this.app.use(`${configEnv.API_BASE_PATH}/businesses`, businessRoutes);
+    this.app.use(`${configEnv.API_BASE_PATH}/users`, userRoutes);
+    this.app.use(`${configEnv.API_BASE_PATH}/products`, productRoutes);
+    this.app.use(`${configEnv.API_BASE_PATH}/categories`, categoryRoutes);
+    this.app.use(`${configEnv.API_BASE_PATH}/units`, unitRoutes);
+    this.app.use(`${configEnv.API_BASE_PATH}/dashboard`, dashboardRoutes);
   }
 
   private initializeNotFound(): void {

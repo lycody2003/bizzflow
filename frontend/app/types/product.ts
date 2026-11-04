@@ -21,6 +21,7 @@ export interface Product {
   barcodeType: BarcodeType | null
   description: string
   categoryId: string
+  categoryName?: string
   type: ProductType
   unit: string
   costPrice: number

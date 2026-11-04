@@ -1,5 +1,4 @@
-
-import demoProductImageRepository from '../../providers/demo/repositories/product-image.repository'
+import createProductImageApiRepository from '../../repositories/api/product-image.repository'
 
 import type {
   ProductImage,
@@ -28,13 +27,13 @@ export class ProductImageService {
   ): Promise<void> {
     this.validateId(productId, 'Product ID')
     this.validateId(businessId, 'Business ID')
-
     await this.validateImage(file)
 
     const image: ProductImage = {
       productId,
       businessId,
       blob: file,
+      imageUrl: null,
       mimeType: file.type,
       updatedAt: new Date().toISOString(),
     }
@@ -49,10 +48,7 @@ export class ProductImageService {
     this.validateId(productId, 'Product ID')
     this.validateId(businessId, 'Business ID')
 
-    return this.repository.findByProductId(
-      productId,
-      businessId,
-    )
+    return this.repository.findByProductId(productId, businessId)
   }
 
   async delete(
@@ -81,9 +77,7 @@ export class ProductImageService {
     }
 
     if (!ALLOWED_IMAGE_TYPES.includes(file.type as AllowedImageType)) {
-      throw new Error(
-        'Only JPG, PNG, and WebP images are allowed.',
-      )
+      throw new Error('Only JPG, PNG, and WebP images are allowed.')
     }
 
     if (file.size === 0) {
@@ -142,9 +136,7 @@ export class ProductImageService {
   }
 }
 
-// Application default instance
-const productImageService = new ProductImageService(
-  demoProductImageRepository,
-)
-
-export default productImageService
+export default function useProductImageService() {
+  const repository = createProductImageApiRepository()
+  return new ProductImageService(repository)
+}

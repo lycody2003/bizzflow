@@ -4,6 +4,7 @@ import type { ApiResponse } from '../types/auth'
 type RequestOptions = {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   body?: object | FormData
+  query?: Record<string, string | number | boolean | undefined>
   requiresCsrf?: boolean
   requiresAuth?: boolean
   retryOnUnauthorized?: boolean
@@ -141,6 +142,7 @@ export default function useApi() {
     const {
       method = 'GET',
       body,
+      query,
       requiresCsrf = false,
       requiresAuth = false,
       retryOnUnauthorized = true,
@@ -164,6 +166,7 @@ export default function useApi() {
         {
           method,
           body,
+          query,
           headers,
           credentials: 'include',
         },

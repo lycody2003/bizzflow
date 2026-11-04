@@ -1,8 +1,8 @@
-
 export interface ProductImage {
   productId: string
   businessId: string
-  blob: Blob
+  blob: Blob | null
+  imageUrl: string | null
   mimeType: string
   updatedAt: string
 }

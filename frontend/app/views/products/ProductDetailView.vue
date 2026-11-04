@@ -1,14 +1,17 @@
 
 <script setup lang="ts">
+const productImageService = useProductImageService()
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
-import productService from '@services/products/product.service'
-import productImageService from '@services/products/product-image.service'
-import dashboard from '@composables/useDashboard'
+
+import useProductImageService from '@services/products/product-image.service'
+import useBusiness from '@composables/useBusiness'
 
 import ProductBarcode from '@components/products/ProductBarcode.vue'
 import ProductForm from '@components/products/ProductForm.vue'
 import ConfirmationDialog from '@components/common/ConfirmationDialog.vue'
+
+import type { Category } from '@app-types/category'
 
 import type {
   Product,
@@ -26,7 +29,10 @@ const props = defineProps<{
   productId: string
 }>()
 
-const businessId = dashboard.selectedBusinessIdValue
+const categories = ref<Category[]>([])
+
+const { business, loadBusiness } = useBusiness()
+const businessId = computed(() => business.value?.id ?? '')
 
 const product = ref<Product | null>(null)
 
@@ -111,9 +117,8 @@ async function loadDetailImage(
       return
     }
 
-    detailImageUrl.value = image
-      ? URL.createObjectURL(image.blob)
-      : null
+    detailImageUrl.value = image?.imageUrl ??
+      (image?.blob ? URL.createObjectURL(image.blob) : null)
   } catch (err) {
     if (currentRequestId !== detailImageRequestId) return
 
@@ -133,7 +138,7 @@ async function loadProduct() {
   error.value = null
 
   try {
-    await dashboard.loadDashboard()
+    await loadBusiness()
 
     if (currentRequestId !== requestId) return
 
@@ -142,6 +147,18 @@ async function loadProduct() {
     if (!currentBusinessId) {
       throw new Error('Business information is unavailable.')
     }
+
+    try {
+      categories.value = await $categoryService.getCategories(
+        currentBusinessId,
+        'all',
+      )
+    } catch (categoryError) {
+      console.error('Unable to load product categories:', categoryError)
+      categories.value = []
+    }
+
+    if (currentRequestId !== requestId) return
 
     if (!props.productId) {
       throw new Error('Product ID is missing.')
@@ -216,9 +233,8 @@ async function openEditForm() {
       return
     }
 
-    initialImageUrl.value = image
-      ? URL.createObjectURL(image.blob)
-      : null
+    initialImageUrl.value = image?.imageUrl ??
+      (image?.blob ? URL.createObjectURL(image.blob) : null)
 
     showEditForm.value = true
     error.value = null
@@ -441,6 +457,11 @@ onBeforeUnmount(() => {
   revokeInitialImageUrl()
   revokeDetailImageUrl()
 })
+const {
+  $productService: productService,
+  $categoryService,
+} = useNuxtApp()
+
 </script>
 
 <template>
@@ -567,7 +588,7 @@ onBeforeUnmount(() => {
 
             <span>
               <Icon name="lucide:tag" />
-              {{ product.categoryId || 'General' }}
+              {{ product.categoryName || 'General' }}
             </span>
           </div>
         </div>
@@ -594,7 +615,7 @@ onBeforeUnmount(() => {
 
           <div class="detail-row">
             <span>Category</span>
-            <strong>{{ product.categoryId || 'General' }}</strong>
+            <strong>{{ product.categoryName || 'General' }}</strong>
           </div>
 
           <div class="detail-row">
@@ -732,6 +753,7 @@ onBeforeUnmount(() => {
       :initial-product="product"
       :initial-image-url="initialImageUrl"
       :submitting="saving"
+      :categories="categories"
       @submit="handleUpdateProduct"
       @cancel="closeEditForm"
     />
