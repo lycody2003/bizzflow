@@ -34,8 +34,7 @@ const productFields = {
     .max(2000, "Description cannot exceed 2000 characters")
     .optional(),
 
-  category: z.string().trim().max(100).optional(),
-  categoryId: z.string().trim().max(100).optional(),
+  categoryId: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid category ID"),
 
   type: productTypeSchema.optional(),
   unit: z.string().trim().min(1).max(30).optional(),
@@ -68,7 +67,6 @@ class ProductValidation {
       barcode: productFields.barcode,
       barcodeType: productFields.barcodeType,
       description: productFields.description,
-      category: productFields.category,
       categoryId: productFields.categoryId,
       type: productFields.type,
       unit: productFields.unit,
@@ -93,7 +91,6 @@ class ProductValidation {
         barcode: productFields.barcode,
         barcodeType: productFields.barcodeType,
         description: productFields.description,
-        category: productFields.category,
         categoryId: productFields.categoryId,
         type: productFields.type,
         unit: productFields.unit,

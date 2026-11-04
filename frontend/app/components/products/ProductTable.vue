@@ -168,7 +168,7 @@ function getStockClass(product: Product): string {
 
             <div class="product-info">
               <span class="product-name">
-                category : {{ product.name || 'Name unavailable' }}
+                {{ product.name || 'Name unavailable' }}
               </span>
 
               <small class="product-category">

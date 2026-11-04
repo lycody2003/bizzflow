@@ -18,7 +18,6 @@ interface BackendProduct {
   barcode?: string | null;
   barcodeType?: BarcodeType | null;
   description?: string;
-  category?: string;
   categoryId?:
     | string
     | {
@@ -63,7 +62,7 @@ function mapProduct(data: BackendProduct): Product {
     categoryId:
       typeof data.categoryId === "string"
         ? data.categoryId
-        : (data.categoryId?._id ?? data.category ?? ""),
+        : (data.categoryId?._id ?? ""),
     categoryName:
       typeof data.categoryId === "object" ? data.categoryId.name : undefined,
     type: data.type ?? "standard",

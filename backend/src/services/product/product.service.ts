@@ -1,4 +1,5 @@
 import Product from "@models/product.model";
+import Category from "@models/category.model";
 import AppError from "@shared-errors/app.error";
 import type { Types } from "mongoose";
 
@@ -8,7 +9,6 @@ interface CreateProductInput {
   barcode?: string | null;
   barcodeType?: "EAN13" | "UPC" | "EAN8" | "CODE128" | "QR" | null;
   description?: string;
-  category?: string;
   categoryId?: string;
   type?: "standard" | "variant";
   unit?: string;
@@ -26,7 +26,6 @@ interface UpdateProductInput {
   barcode?: string | null;
   barcodeType?: "EAN13" | "UPC" | "EAN8" | "CODE128" | "QR" | null;
   description?: string;
-  category?: string;
   categoryId?: string;
   type?: "standard" | "variant";
   unit?: string;
@@ -46,6 +45,22 @@ interface GetProductsQuery {
 }
 
 class ProductService {
+  private async validateCategory(businessId: string, categoryId?: string) {
+    if (!categoryId) {
+      throw new AppError("Category is required.", 400);
+    }
+
+    const category = await Category.findOne({
+      _id: categoryId,
+      businessId,
+      isActive: true,
+    }).select("_id");
+
+    if (!category) {
+      throw new AppError("Category not found or inactive.", 400);
+    }
+  }
+
   private handleDatabaseError(error: unknown): never {
     if (
       typeof error === "object" &&
@@ -63,11 +78,12 @@ class ProductService {
   }
 
   async create(businessId: string, input: CreateProductInput) {
+    await this.validateCategory(businessId, input.categoryId);
+
     try {
       return await Product.create({
         ...input,
-        category: input.category ?? input.categoryId ?? "",
-        categoryId: input.categoryId ?? input.category ?? "",
+        categoryId: input.categoryId,
         stockQuantity: input.stockQuantity ?? 0,
         businessId,
       });
@@ -100,8 +116,7 @@ class ProductService {
       filter.$or = [
         { name: searchRegex },
         { sku: searchRegex },
-        { category: searchRegex },
-        { categoryId: searchRegex },
+
         { barcode: searchRegex },
       ];
     }
@@ -149,12 +164,12 @@ class ProductService {
     productId: string,
     input: UpdateProductInput,
   ) {
+    if (input.categoryId !== undefined) {
+      await this.validateCategory(businessId, input.categoryId);
+    }
+
     try {
       const updateData: UpdateProductInput = { ...input };
-
-      if (input.categoryId !== undefined) {
-        updateData.category = input.categoryId;
-      }
 
       const product = await Product.findOneAndUpdate(
         {

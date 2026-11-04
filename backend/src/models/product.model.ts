@@ -1,4 +1,4 @@
-import mongoose, { ObjectId, Schema, type Document, type Types } from "mongoose";
+import mongoose, { Schema, type Document, type Types } from "mongoose";
 
 export type ProductStatus = "active" | "inactive";
 export type ProductType = "standard" | "variant";
@@ -11,8 +11,7 @@ export interface ProductDocument extends Document {
   barcode: string | null;
   barcodeType: BarcodeType | null;
   description: string;
-  category: string;
-  categoryId: ObjectId;
+  categoryId: Types.ObjectId;
   type: ProductType;
   unit: string;
   costPrice: number;

@@ -107,14 +107,6 @@ const availableCategories = computed(() => {
   return activeCategories
 })
 
-const hasLegacyCategory = computed(() => {
-  const currentCategoryId = props.initialProduct?.categoryId
-
-  return Boolean(
-    currentCategoryId &&
-    !props.categories?.some(category => category.id === currentCategoryId),
-  )
-})
 
 function generateInternalBarcode(): string {
   return `BF${crypto.randomUUID().replaceAll('-', '').slice(0, 12).toUpperCase()}`
@@ -474,15 +466,9 @@ onBeforeUnmount(() => {
                   {{ category.name }}{{ !category.isActive ? ' (Inactive)' : '' }}
                 </option>
 
-                <option
-                  v-if="hasLegacyCategory"
-                  :value="props.initialProduct?.categoryId"
-                >
-                  Existing legacy category
-                </option>
-              </select>
+                </select>
 
-              <small v-if="availableCategories.length === 0 && !hasLegacyCategory">
+              <small v-if="availableCategories.length === 0">
                 No active categories available. Create a category before adding a product.
               </small>
 
