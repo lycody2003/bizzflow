@@ -1,29 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 
-import useBusiness from '@composables/useBusiness'
 import useUserAvatar from '@composables/useUserAvatar'
 import useUserAccount from '@composables/useUserAccount'
 
 import UserAvatarUpload from '@components/settings/UserAvatarUpload.vue'
-import BusinessLogoUpload from '@components/settings/BusinessLogoUpload.vue'
-import BusinessProfileForm from '@components/settings/BusinessProfileForm.vue'
-import UnitsManagement from '@components/settings/UnitsManagement.vue'
 import ConfirmationDialog from '@components/common/ConfirmationDialog.vue'
 
 import useAuthStore from '@stores/auth.store'
-
-const {
-  business,
-  loading,
-  saving,
-  uploadingLogo,
-  removingLogo,
-  loadBusiness,
-  updateBusiness,
-  uploadLogo,
-  removeLogo,
-} = useBusiness()
 
 const authStore = useAuthStore()
 
@@ -47,7 +31,7 @@ const error = ref<string | null>(null)
 const successMessage = ref<string | null>(null)
 
 // Shared confirmation dialog state.
-type ConfirmAction = 'remove-logo' | 'remove-avatar'
+type ConfirmAction = 'remove-avatar'
 
 const showConfirmation = ref(false)
 const confirmationTitle = ref('')
@@ -89,68 +73,6 @@ function getErrorMessage(err: unknown, fallback: string) {
 function showError(err: unknown, fallback: string) {
   error.value = getErrorMessage(err, fallback)
   successMessage.value = null
-}
-
-async function initialize() {
-  loading.value = true
-  error.value = null
-
-  try {
-    await loadBusiness()
-  } catch (err) {
-    showError(err, 'Unable to load business settings.')
-  } finally {
-    loading.value = false
-  }
-}
-
-// Business handlers
-async function handleUpdateBusiness(name: string) {
-  error.value = null
-  successMessage.value = null
-
-  try {
-    await updateBusiness(name)
-    successMessage.value = 'Business information updated successfully.'
-  } catch (err) {
-    showError(err, 'Unable to update business information.')
-  }
-}
-
-async function handleUploadLogo(file: File) {
-  error.value = null
-  successMessage.value = null
-
-  try {
-    await uploadLogo(file)
-    successMessage.value = 'Business logo uploaded successfully.'
-  } catch (err) {
-    showError(err, 'Unable to upload business logo.')
-  }
-}
-
-function requestRemoveLogo() {
-  if (removingLogo.value || !business.value?.logoUrl) return
-
-  confirmationTitle.value = 'Remove business logo?'
-  confirmationMessage.value = 'Your current business logo will be removed. You can upload a new logo later.'
-  confirmationItemName.value = ''
-  confirmationText.value = 'Remove Logo'
-  confirmationVariant.value = 'danger'
-  pendingConfirmationAction.value = 'remove-logo'
-  showConfirmation.value = true
-}
-
-async function handleRemoveLogo() {
-  error.value = null
-  successMessage.value = null
-
-  try {
-    await removeLogo()
-    successMessage.value = 'Business logo removed successfully.'
-  } catch (err) {
-    showError(err, 'Unable to remove business logo.')
-  }
 }
 
 // Avatar handlers
@@ -198,9 +120,7 @@ async function handleConfirmation() {
   confirmingAction.value = true
 
   try {
-    if (action === 'remove-logo') {
-      await handleRemoveLogo()
-    } else if (action === 'remove-avatar') {
+    if (action === 'remove-avatar') {
       await handleRemoveAvatar()
     }
 
@@ -305,7 +225,6 @@ const memberSince = computed(() => {
   )
 })
 
-onMounted(initialize)
 </script>
 
 <template>
@@ -313,7 +232,7 @@ onMounted(initialize)
     <header class="page-header">
       <div>
         <h1>Settings</h1>
-        <p>Manage your business information and account preferences.</p>
+        <p>Manage information and account preferences.</p>
       </div>
     </header>
 
@@ -335,14 +254,8 @@ onMounted(initialize)
       </button>
     </div>
 
-    <div v-if="loading && !business" class="page-state">
-      <Icon name="lucide:loader-circle" class="spin" />
-      Loading settings...
-    </div>
-
-    <template v-else-if="business">
-      <!-- User Account -->
-      <section v-if="user" class="settings-card">
+    <!-- User Account -->
+    <section v-if="user" class="settings-card">
         <div class="section-heading">
           <div class="section-icon">
             <Icon name="lucide:user-round" />
@@ -526,57 +439,7 @@ onMounted(initialize)
         <div class="section-content">
           <p>User information is unavailable.</p>
         </div>
-      </section>
-      <!-- Business Profile -->
-      <section class="settings-card">
-        <div class="section-heading">
-          <div class="section-icon">
-            <Icon name="lucide:building-2" />
-          </div>
-
-          <div>
-            <h2>Business Profile</h2>
-            <p>Manage your business identity and information.</p>
-          </div>
-        </div>
-
-        <div class="section-content">
-          <BusinessLogoUpload :logo-url="business.logoUrl" :uploading="uploadingLogo" :removing="removingLogo"
-            @upload="handleUploadLogo" @remove="requestRemoveLogo" />
-
-          <div class="section-divider" />
-
-          <BusinessProfileForm :name="business.name" :status="business.status" :saving="saving"
-            @save="handleUpdateBusiness" />
-        </div>
-      </section>
-
-      <!-- Units Management -->
-      <section class="settings-card">
-        <div class="section-heading">
-          <div class="section-icon">
-            <Icon name="lucide:ruler" />
-          </div>
-
-          <div>
-            <h2>Units Management</h2>
-            <p>Manage measurement units used by your products.</p>
-          </div>
-        </div>
-
-        <div class="section-content">
-          <UnitsManagement />
-        </div>
-      </section>
-    </template>
-
-    <div v-else-if="!error" class="page-state">
-      <p>Business information is not available.</p>
-
-      <button type="button" class="retry-button" @click="initialize">
-        Try Again
-      </button>
-    </div>
+    </section>
 
     <ConfirmationDialog v-model="showConfirmation" :title="confirmationTitle" :message="confirmationMessage"
       :item-name="confirmationItemName" :confirm-text="confirmationText" :variant="confirmationVariant"

@@ -1,6 +1,7 @@
 import type { ApiResponse } from "@app-types/auth";
 import type {
   Product,
+  ProductUnit,
   CreateProductInput,
   UpdateProductInput,
   BarcodeType,
@@ -18,7 +19,7 @@ interface BackendProduct {
   barcode?: string | null;
   barcodeType?: BarcodeType | null;
   description?: string;
-  categoryId?:
+  category?:
     | string
     | {
         _id: string;
@@ -27,7 +28,12 @@ interface BackendProduct {
         isActive?: boolean;
       };
   type?: ProductType;
-  unit?: string;
+  unit?: {
+    _id: string;
+    name: string;
+    symbol: string;
+    isActive?: boolean;
+  };
   costPrice: number;
   sellingPrice: number;
   currency?: ProductCurrency;
@@ -59,14 +65,25 @@ function mapProduct(data: BackendProduct): Product {
     barcode: data.barcode ?? null,
     barcodeType: data.barcodeType ?? null,
     description: data.description ?? "",
-    categoryId:
-      typeof data.categoryId === "string"
-        ? data.categoryId
-        : (data.categoryId?._id ?? ""),
+    category:
+      typeof data.category === "string"
+        ? data.category
+        : (data.category?._id ?? ""),
     categoryName:
-      typeof data.categoryId === "object" ? data.categoryId.name : undefined,
+      typeof data.category === "object" ? data.category.name : undefined,
     type: data.type ?? "standard",
-    unit: data.unit ?? "piece",
+    unit: (() => {
+      if (!data.unit) {
+        throw new Error("Product unit was not populated by the API.");
+      }
+
+      return {
+        id: data.unit._id,
+        name: data.unit.name,
+        symbol: data.unit.symbol,
+        isActive: data.unit.isActive,
+      } satisfies ProductUnit;
+    })(),
     costPrice: data.costPrice,
     sellingPrice: data.sellingPrice,
     currency: data.currency ?? "USD",
@@ -153,7 +170,13 @@ export default function createProductApiRepository(): ProductRepository {
       throw new Error(response.message || "Unable to create product.");
     }
 
-    return mapProduct(response.data);
+    const product = await findById(response.data._id, data.businessId);
+
+    if (!product) {
+      throw new Error("Created product could not be loaded.");
+    }
+
+    return product;
   }
 
   async function update(
@@ -174,10 +197,10 @@ export default function createProductApiRepository(): ProductRepository {
       throw new Error(response.message || "Unable to update product.");
     }
 
-    const product = mapProduct(response.data);
+    const product = await findById(response.data._id, businessId);
 
-    if (product.businessId !== businessId) {
-      throw new Error("Product does not belong to the selected business.");
+    if (!product) {
+      throw new Error("Updated product could not be loaded.");
     }
 
     return product;

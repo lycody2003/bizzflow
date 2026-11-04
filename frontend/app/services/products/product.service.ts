@@ -48,7 +48,7 @@ export class ProductService {
       barcode,
       barcodeType,
       description: data.description?.trim() ?? '',
-      categoryId: data.categoryId.trim(),
+      category: data.category.trim(),
       unit: data.unit.trim(),
     }
 
@@ -96,8 +96,8 @@ export class ProductService {
         ? { description: data.description.trim() }
         : {}),
 
-      ...(data.categoryId !== undefined
-        ? { categoryId: data.categoryId.trim() }
+      ...(data.category !== undefined
+        ? { category: data.category.trim() }
         : {}),
 
       ...(data.unit !== undefined
@@ -178,8 +178,8 @@ export class ProductService {
       }
     }
 
-    if ('categoryId' in data && data.categoryId !== undefined) {
-      if (!data.categoryId.trim()) {
+    if ('category' in data && data.category !== undefined) {
+      if (!data.category.trim()) {
         throw new Error('Product category is required.')
       }
     }

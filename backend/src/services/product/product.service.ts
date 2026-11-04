@@ -1,17 +1,16 @@
+import Unit from "@models/unit.model";
 import Product from "@models/product.model";
 import Category from "@models/category.model";
 import AppError from "@shared-errors/app.error";
-import type { Types } from "mongoose";
-
 interface CreateProductInput {
   name: string;
   sku: string;
   barcode?: string | null;
   barcodeType?: "EAN13" | "UPC" | "EAN8" | "CODE128" | "QR" | null;
   description?: string;
-  categoryId?: string;
+  category?: string;
   type?: "standard" | "variant";
-  unit?: string;
+  unit: string;
   costPrice: number;
   sellingPrice: number;
   currency?: "USD" | "KHR";
@@ -26,7 +25,7 @@ interface UpdateProductInput {
   barcode?: string | null;
   barcodeType?: "EAN13" | "UPC" | "EAN8" | "CODE128" | "QR" | null;
   description?: string;
-  categoryId?: string;
+  category?: string;
   type?: "standard" | "variant";
   unit?: string;
   costPrice?: number;
@@ -45,19 +44,35 @@ interface GetProductsQuery {
 }
 
 class ProductService {
-  private async validateCategory(businessId: string, categoryId?: string) {
-    if (!categoryId) {
+  private async validateCategory(businessId: string, category?: string) {
+    if (!category) {
       throw new AppError("Category is required.", 400);
     }
 
-    const category = await Category.findOne({
-      _id: categoryId,
+    const result = await Category.findOne({
+      _id: category,
       businessId,
       isActive: true,
     }).select("_id");
 
-    if (!category) {
+    if (!result) {
       throw new AppError("Category not found or inactive.", 400);
+    }
+  }
+
+  private async validateUnit(businessId: string, unit?: string) {
+    if (!unit) {
+      throw new AppError("Unit is required.", 400);
+    }
+
+    const result = await Unit.findOne({
+      _id: unit,
+      businessId,
+      isActive: true,
+    }).select("_id");
+
+    if (!result) {
+      throw new AppError("Unit not found or inactive.", 400);
     }
   }
 
@@ -78,12 +93,13 @@ class ProductService {
   }
 
   async create(businessId: string, input: CreateProductInput) {
-    await this.validateCategory(businessId, input.categoryId);
+    await this.validateCategory(businessId, input.category);
+    await this.validateUnit(businessId, input.unit);
 
     try {
       return await Product.create({
         ...input,
-        categoryId: input.categoryId,
+        category: input.category,
         stockQuantity: input.stockQuantity ?? 0,
         businessId,
       });
@@ -98,7 +114,7 @@ class ProductService {
     const skip = (page - 1) * limit;
 
     const filter: {
-      businessId: Types.ObjectId | string;
+      businessId: string;
       status?: "active" | "inactive";
       $or?: Array<Record<string, unknown>>;
     } = {
@@ -123,6 +139,11 @@ class ProductService {
 
     const [products, total] = await Promise.all([
       Product.find(filter)
+        .populate({
+          path: "unit",
+          model: "Unit",
+          select: "name symbol isActive",
+        })
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -146,11 +167,17 @@ class ProductService {
     const product = await Product.findOne({
       _id: productId,
       businessId,
-    }).populate({
-      path: "categoryId",
-      model: "Category",
-      select: "name icon isActive",
-    });
+    })
+      .populate({
+        path: "category",
+        model: "Category",
+        select: "name icon isActive",
+      })
+      .populate({
+        path: "unit",
+        model: "Unit",
+        select: "name symbol isActive",
+      });
 
     if (!product) {
       throw new AppError("Product not found.", 404);
@@ -164,8 +191,12 @@ class ProductService {
     productId: string,
     input: UpdateProductInput,
   ) {
-    if (input.categoryId !== undefined) {
-      await this.validateCategory(businessId, input.categoryId);
+    if (input.category !== undefined) {
+      await this.validateCategory(businessId, input.category);
+    }
+
+    if (input.unit !== undefined) {
+      await this.validateUnit(businessId, input.unit);
     }
 
     try {

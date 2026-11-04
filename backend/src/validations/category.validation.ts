@@ -13,7 +13,7 @@ const categoryIconSchema = z
   .max(100, "Icon name is too long")
   .nullable();
 
-const categoryIdSchema = z
+const categorySchema = z
   .string()
   .regex(/^[a-fA-F0-9]{24}$/, "Invalid category ID");
 
@@ -37,7 +37,7 @@ class CategoryValidation {
 
   readonly update = z.object({
     params: z.object({
-      id: categoryIdSchema,
+      id: categorySchema,
     }),
     body: z
       .object({
@@ -53,7 +53,7 @@ class CategoryValidation {
 
   readonly getById = z.object({
     params: z.object({
-      id: categoryIdSchema,
+      id: categorySchema,
     }),
   });
 }

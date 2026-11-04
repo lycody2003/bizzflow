@@ -65,7 +65,7 @@ class CategoryService {
 
   async update(
     businessId: string,
-    categoryId: string,
+    category: string,
     input: UpdateCategoryInput,
   ) {
     try {
@@ -75,9 +75,9 @@ class CategoryService {
         updateData.icon = input.icon?.trim() || null;
       }
 
-      const category = await Category.findOneAndUpdate(
+      const result = await Category.findOneAndUpdate(
         {
-          _id: categoryId,
+          _id: category,
           businessId,
         },
         {
@@ -89,11 +89,11 @@ class CategoryService {
         },
       );
 
-      if (!category) {
+      if (!result) {
         throw new AppError("Category not found.", 404);
       }
 
-      return category;
+      return result;
     } catch (error) {
       if (error instanceof AppError) {
         throw error;
@@ -105,11 +105,11 @@ class CategoryService {
 
   async deactivate(
     businessId: string,
-    categoryId: string,
+    category: string,
   ) {
-    const category = await Category.findOneAndUpdate(
+    const result = await Category.findOneAndUpdate(
       {
-        _id: categoryId,
+        _id: category,
         businessId,
         isActive: true,
       },
@@ -123,11 +123,11 @@ class CategoryService {
       },
     );
 
-    if (!category) {
+    if (!result) {
       throw new AppError("Category not found.", 404);
     }
 
-    return category;
+    return result;
   }
 }
 

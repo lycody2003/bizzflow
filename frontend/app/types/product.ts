@@ -12,6 +12,13 @@ export type BarcodeType =
 
 export type ProductCurrency = 'USD' | 'KHR'
 
+export interface ProductUnit {
+  id: string
+  name: string
+  symbol: string
+  isActive?: boolean
+}
+
 export interface Product {
   id: string
   businessId: string
@@ -20,10 +27,10 @@ export interface Product {
   barcode: string | null
   barcodeType: BarcodeType | null
   description: string
-  categoryId: string
+  category: string
   categoryName?: string
   type: ProductType
-  unit: string
+  unit: ProductUnit
   costPrice: number
   sellingPrice: number
   currency: ProductCurrency
@@ -45,7 +52,7 @@ export interface CreateProductInput {
   barcode?: string | null
   barcodeType?: BarcodeType | null
   description?: string
-  categoryId: string
+  category: string
   type: ProductType
   unit: string
   costPrice: number
@@ -63,7 +70,7 @@ export interface UpdateProductInput {
   barcode?: string | null
   barcodeType?: BarcodeType | null
   description?: string
-  categoryId?: string
+  category?: string
   type?: ProductType
   unit?: string
   costPrice?: number

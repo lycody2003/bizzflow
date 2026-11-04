@@ -1,6 +1,6 @@
 
 <script setup lang="ts">
-import SettingsView from '@views/settings/SettingsView.vue'
+import AccountSetting from '@views/settings/AccountSetting.vue'
 
 definePageMeta({
   middleware: 'auth',
@@ -8,5 +8,5 @@ definePageMeta({
 </script>
 
 <template>
-  <SettingsView />
+  <AccountSetting />
 </template>

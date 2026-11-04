@@ -37,11 +37,11 @@ const categoryNames = computed<Record<string, string>>(() => {
 })
 
 function getCategoryName(product: Product): string {
-  if (!product.categoryId) {
+  if (!product.category) {
     return 'Uncategorized'
   }
 
-  return categoryNames.value[product.categoryId] ?? 'Category unavailable'
+  return categoryNames.value[product.category] ?? 'Category unavailable'
 }
 
 const imageUrls = computed<Record<string, string>>(() => {
@@ -213,7 +213,7 @@ function getStockClass(product: Product): string {
           <div class="stock-cell">
             <strong>
               {{ product.currentStock }}
-              <small>{{ product.unit }}</small>
+              <small>{{ product.unit.symbol }}</small>
             </strong>
 
             <span :class="[

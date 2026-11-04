@@ -34,10 +34,10 @@ const productFields = {
     .max(2000, "Description cannot exceed 2000 characters")
     .optional(),
 
-  categoryId: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid category ID"),
+  category: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid category ID"),
 
   type: productTypeSchema.optional(),
-  unit: z.string().trim().min(1).max(30).optional(),
+  unit: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid unit ID"),
 
   costPrice: z.number().finite().min(0, "Cost price cannot be negative"),
   sellingPrice: z.number().finite().min(0, "Selling price cannot be negative"),
@@ -67,7 +67,7 @@ class ProductValidation {
       barcode: productFields.barcode,
       barcodeType: productFields.barcodeType,
       description: productFields.description,
-      categoryId: productFields.categoryId,
+      category: productFields.category,
       type: productFields.type,
       unit: productFields.unit,
       costPrice: productFields.costPrice,
@@ -91,9 +91,9 @@ class ProductValidation {
         barcode: productFields.barcode,
         barcodeType: productFields.barcodeType,
         description: productFields.description,
-        categoryId: productFields.categoryId,
+        category: productFields.category.optional(),
         type: productFields.type,
-        unit: productFields.unit,
+        unit: productFields.unit.optional(),
         costPrice: productFields.costPrice.optional(),
         sellingPrice: productFields.sellingPrice.optional(),
         currency: productFields.currency,

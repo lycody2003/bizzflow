@@ -12,6 +12,7 @@ import ProductForm from '@components/products/ProductForm.vue'
 import ConfirmationDialog from '@components/common/ConfirmationDialog.vue'
 
 import type { Category } from '@app-types/category'
+import type { Unit } from '@app-types/unit'
 
 import type {
   Product,
@@ -30,6 +31,7 @@ const props = defineProps<{
 }>()
 
 const categories = ref<Category[]>([])
+const units = ref<Unit[]>([])
 
 const { business, loadBusiness } = useBusiness()
 const businessId = computed(() => business.value?.id ?? '')
@@ -160,6 +162,26 @@ async function loadProduct() {
 
     if (currentRequestId !== requestId) return
 
+    try {
+      const unitResult = await $unitService.getUnits(
+        currentBusinessId,
+        {
+          status: 'all',
+          page: 1,
+          limit: 100,
+        },
+      )
+
+      if (currentRequestId !== requestId) return
+
+      units.value = unitResult.items
+    } catch (unitError) {
+      console.error('Unable to load product units:', unitError)
+      units.value = []
+    }
+
+    if (currentRequestId !== requestId) return
+
     if (!props.productId) {
       throw new Error('Product ID is missing.')
     }
@@ -285,7 +307,7 @@ async function handleUpdateProduct(payload: ProductFormSubmitPayload) {
       barcode: payload.data.barcode,
       barcodeType: payload.data.barcodeType,
       description: payload.data.description,
-      categoryId: payload.data.categoryId,
+      category: payload.data.category,
       type: payload.data.type,
       unit: payload.data.unit,
       costPrice: payload.data.costPrice,
@@ -460,6 +482,7 @@ onBeforeUnmount(() => {
 const {
   $productService: productService,
   $categoryService,
+  $unitService,
 } = useNuxtApp()
 
 </script>
@@ -625,7 +648,7 @@ const {
 
           <div class="detail-row">
             <span>Unit</span>
-            <strong>{{ product.unit }}</strong>
+            <strong>{{ product.unit.name }} ({{ product.unit.symbol }})</strong>
           </div>
 
           <div class="detail-row">
@@ -668,14 +691,14 @@ const {
           <div class="detail-row">
             <span>Current Stock</span>
             <strong>
-              {{ product.currentStock }} {{ product.unit }}
+              {{ product.currentStock }} {{ product.unit.symbol }}
             </strong>
           </div>
 
           <div class="detail-row">
             <span>Minimum Stock</span>
             <strong>
-              {{ product.minimumStock }} {{ product.unit }}
+              {{ product.minimumStock }} {{ product.unit.symbol }}
             </strong>
           </div>
 
@@ -754,6 +777,7 @@ const {
       :initial-image-url="initialImageUrl"
       :submitting="saving"
       :categories="categories"
+      :units="units"
       @submit="handleUpdateProduct"
       @cancel="closeEditForm"
     />

@@ -11,9 +11,9 @@ export interface ProductDocument extends Document {
   barcode: string | null;
   barcodeType: BarcodeType | null;
   description: string;
-  categoryId: Types.ObjectId;
+  category: Types.ObjectId;
   type: ProductType;
-  unit: string;
+  unit: Types.ObjectId;
   costPrice: number;
   sellingPrice: number;
   currency: ProductCurrency;
@@ -60,7 +60,7 @@ const productSchema = new Schema<ProductDocument>(
       maxlength: 2000,
       default: "",
     },
-    categoryId: {
+    category: {
       type: Schema.Types.ObjectId,
       ref: "Category",
       required: true
@@ -71,10 +71,9 @@ const productSchema = new Schema<ProductDocument>(
       default: "standard",
     },
     unit: {
-      type: String,
-      trim: true,
-      maxlength: 30,
-      default: "piece",
+      type: Schema.Types.ObjectId,
+      ref: "Unit",
+      required: true,
     },
     costPrice: {
       type: Number,

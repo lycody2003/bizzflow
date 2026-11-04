@@ -28,6 +28,7 @@ import type {
 } from '@app-types/product'
 
 import type { Category } from '@app-types/category'
+import type { Unit } from '@app-types/unit'
 
 type BarcodeMode = 'auto' | 'manual' | 'none'
 
@@ -43,6 +44,7 @@ const props = defineProps<{
   initialProduct?: Product | null
   initialImageUrl?: string | null
   categories?: Category[]
+  units: Unit[]
 }>()
 
 const emit = defineEmits<{
@@ -90,14 +92,14 @@ const availableCategories = computed(() => {
     category => category.isActive,
   ) ?? []
 
-  const currentCategoryId = props.initialProduct?.categoryId
+  const currentcategory = props.initialProduct?.category
 
-  if (!currentCategoryId) {
+  if (!currentcategory) {
     return activeCategories
   }
 
   const currentCategory = props.categories?.find(
-    category => category.id === currentCategoryId,
+    category => category.id === currentcategory,
   )
 
   if (currentCategory && !currentCategory.isActive) {
@@ -107,6 +109,28 @@ const availableCategories = computed(() => {
   return activeCategories
 })
 
+
+const availableUnits = computed(() => {
+  const activeUnits = props.units.filter(unit => unit.isActive)
+  const currentUnit = props.initialProduct?.unit
+
+  if (
+    currentUnit &&
+    !activeUnits.some(unit => unit.id === currentUnit.id)
+  ) {
+    return [
+      ...activeUnits,
+      {
+        id: currentUnit.id,
+        name: currentUnit.name,
+        symbol: currentUnit.symbol,
+        isActive: false,
+      },
+    ]
+  }
+
+  return activeUnits
+})
 
 function generateInternalBarcode(): string {
   return `BF${crypto.randomUUID().replaceAll('-', '').slice(0, 12).toUpperCase()}`
@@ -118,9 +142,9 @@ const form = reactive({
   barcode: props.initialProduct?.barcode ?? generateInternalBarcode(),
   barcodeType: (props.initialProduct?.barcodeType ?? 'CODE128') as BarcodeType,
   description: props.initialProduct?.description ?? '',
-  categoryId: props.initialProduct?.categoryId ?? '',
+  category: props.initialProduct?.category ?? '',
   type: (props.initialProduct?.type ?? 'standard') as ProductType,
-  unit: props.initialProduct?.unit ?? 'piece',
+  unit: props.initialProduct?.unit.id ?? props.units.find(unit => unit.isActive)?.id ?? '',
   costPrice: props.initialProduct?.costPrice ?? 0,
   sellingPrice: props.initialProduct?.sellingPrice ?? 0,
   currency: (props.initialProduct?.currency ?? 'USD') as ProductCurrency,
@@ -130,14 +154,28 @@ const form = reactive({
 watch(
   () => props.categories,
   (categories) => {
-    if (props.initialProduct || form.categoryId) return
+    if (props.initialProduct || form.category) return
 
     const firstActiveCategory = categories?.find(
       category => category.isActive,
     )
 
     if (firstActiveCategory) {
-      form.categoryId = firstActiveCategory.id
+      form.category = firstActiveCategory.id
+    }
+  },
+  { immediate: true },
+)
+
+watch(
+  () => props.units,
+  (units) => {
+    if (props.initialProduct || form.unit) return
+
+    const firstActiveUnit = units.find(unit => unit.isActive)
+
+    if (firstActiveUnit) {
+      form.unit = firstActiveUnit.id
     }
   },
   { immediate: true },
@@ -250,12 +288,27 @@ function validateForm(): string | null {
     return 'Product SKU is required.'
   }
 
-  if (!form.categoryId) {
+  if (!form.category) {
     return 'Please select a category.'
   }
 
-  if (!form.unit.trim()) {
-    return 'Product unit is required.'
+  if (!form.unit) {
+    return 'Please select a product unit.'
+  }
+
+  const selectedUnit = availableUnits.value.find(
+    unit => unit.id === form.unit,
+  )
+
+  if (!selectedUnit) {
+    return 'Please select a valid product unit.'
+  }
+
+  if (
+    !selectedUnit.isActive &&
+    selectedUnit.id !== props.initialProduct?.unit.id
+  ) {
+    return 'Please select an active product unit.'
   }
 
   if (!Number.isFinite(form.costPrice) || form.costPrice < 0) {
@@ -296,9 +349,9 @@ function handleSubmit() {
     barcode,
     barcodeType: barcode ? form.barcodeType : null,
     description: form.description.trim(),
-    categoryId: form.categoryId,
+    category: form.category,
     type: form.type,
-    unit: form.unit.trim(),
+    unit: form.unit,
     costPrice: Number(form.costPrice),
     sellingPrice: Number(form.sellingPrice),
     currency: form.currency,
@@ -450,7 +503,7 @@ onBeforeUnmount(() => {
               <label for="product-category">Category *</label>
               <select
                 id="product-category"
-                v-model="form.categoryId"
+                v-model="form.category"
                 required
                 :disabled="props.submitting"
               >
@@ -488,14 +541,25 @@ onBeforeUnmount(() => {
 
             <div class="field">
               <label for="product-unit">Unit *</label>
-              <input
+              <select
                 id="product-unit"
                 v-model="form.unit"
-                type="text"
-                placeholder="piece, box, kg..."
                 required
-                :disabled="props.submitting"
-              />
+                :disabled="props.submitting || availableUnits.length === 0"
+              >
+                <option value="" disabled>Select a unit</option>
+                <option
+                  v-for="unit in availableUnits"
+                  :key="unit.id"
+                  :value="unit.id"
+                >
+                  {{ unit.name }} ({{ unit.symbol }}){{ !unit.isActive ? ' — Inactive (current)' : '' }}
+                </option>
+              </select>
+
+              <p v-if="availableUnits.length === 0" class="field-hint">
+                No active units available. Please create an active unit first.
+              </p>
             </div>
 
             <div class="field full-width">

@@ -20,6 +20,7 @@ import type {
 } from '@app-types/product'
 
 import type { Category } from '@app-types/category'
+import type { Unit } from '@app-types/unit'
 
 interface ProductFormSubmitPayload {
   data: CreateProductInput
@@ -84,6 +85,9 @@ const categories = ref<Category[]>([])
 const loadingCategories = ref(false)
 let categoryRequestId = 0
 
+const units = ref<Unit[]>([])
+let unitRequestId = 0
+
 let requestId = 0
 
 const filteredProducts = computed(() => {
@@ -101,7 +105,7 @@ const filteredProducts = computed(() => {
 
     const matchesCategory =
       categoryFilter.value === 'all' ||
-      product.categoryId === categoryFilter.value
+      product.category === categoryFilter.value
 
     const matchesStatus =
       statusFilter.value === 'all' ||
@@ -261,6 +265,40 @@ async function loadCategories() {
   }
 }
 
+async function loadUnits() {
+  const currentRequestId = ++unitRequestId
+  const currentBusinessId = businessId.value
+
+  if (!currentBusinessId) {
+    units.value = []
+    return
+  }
+
+  try {
+    const result = await $unitService.getUnits(currentBusinessId, {
+      status: 'active',
+      page: 1,
+      limit: 100,
+    })
+
+    if (
+      currentRequestId !== unitRequestId ||
+      businessId.value !== currentBusinessId
+    ) {
+      return
+    }
+
+    units.value = result.items
+  } catch (err) {
+    if (currentRequestId !== unitRequestId) return
+
+    units.value = []
+    error.value = err instanceof Error
+      ? `Unable to load units: ${err.message}`
+      : 'Unable to load units.'
+  }
+}
+
 async function loadProducts() {
   const currentRequestId = ++requestId
   const currentBusinessId = businessId.value
@@ -315,6 +353,7 @@ async function initializeProducts() {
     await Promise.all([
       loadProducts(),
       loadCategories(),
+      loadUnits(),
     ])
   } catch (err) {
     error.value = err instanceof Error
@@ -447,7 +486,7 @@ async function handleUpdateProduct(payload: ProductFormSubmitPayload) {
       barcode: payload.data.barcode,
       barcodeType: payload.data.barcodeType,
       description: payload.data.description,
-      categoryId: payload.data.categoryId,
+      category: payload.data.category,
       type: payload.data.type,
       unit: payload.data.unit,
       costPrice: payload.data.costPrice,
@@ -671,12 +710,14 @@ onMounted(initializeProducts)
 onBeforeUnmount(() => {
   imageRequestId++
   categoryRequestId++
+  unitRequestId++
   revokeInitialImageUrl()
 })
 
 const {
   $productService: productService,
   $categoryService,
+  $unitService,
 } = useNuxtApp()
 
 </script>
@@ -790,6 +831,7 @@ const {
       :initial-product="editingProduct"
       :initial-image-url="initialImageUrl"
       :categories="categories"
+      :units="units"
       @submit="editingProduct
         ? handleUpdateProduct($event)
         : handleCreateProduct($event)"
