@@ -58,6 +58,15 @@ export default defineNuxtConfig({
       ],
       link: [
         {
+          rel: "icon",
+          type: "image/x-icon",
+          href: "/favicon.ico",
+        },
+        {
+          rel: "apple-touch-icon",
+          href: "/bizzflow-icon.png",
+        },
+        {
           rel: "stylesheet",
           href: "/style/main.css",
         },

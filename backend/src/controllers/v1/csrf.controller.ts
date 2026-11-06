@@ -11,27 +11,35 @@ class CsrfController {
     next: NextFunction,
   ): Promise<void> {
     try {
-      const token = csrfService.generateToken();
+      const existingToken = _req.cookies?.csrfToken;
 
-      const oldCookieOptions = {
-        path: "/api/v1/auth",
-        ...(configEnv.IS_PRODUCTION && {
-          domain: ".bizzflow.com",
-        }),
-      };
+      const token =
+        typeof existingToken === "string" &&
+        csrfService.verifyToken(existingToken)
+          ? existingToken
+          : csrfService.generateToken();
 
-      res.clearCookie("csrfToken", oldCookieOptions);
-
-      res.cookie("csrfToken", token, {
+      const cookieOptions = {
         httpOnly: false,
         secure: configEnv.IS_PRODUCTION,
-        sameSite: "lax",
+        sameSite: "lax" as const,
         path: configEnv.API_BASE_PATH,
         ...(configEnv.IS_PRODUCTION && {
           domain: ".bizzflow.com",
         }),
         maxAge: 60 * 60 * 1000,
+      };
+
+      // Remove the legacy cookie created with the old auth-only path.
+      res.clearCookie("csrfToken", {
+        path: "/api/v1/auth",
+        ...(configEnv.IS_PRODUCTION && {
+          domain: ".bizzflow.com",
+        }),
       });
+
+      // Reuse a valid token and renew its cookie expiration.
+      res.cookie("csrfToken", token, cookieOptions);
 
       responseHelper.success(res, "CSRF token generated successfully", {
         csrfToken: token,

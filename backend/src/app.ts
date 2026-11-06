@@ -12,6 +12,7 @@ import csrfRoutes from "@routes/v1/csrf.routes";
 import businessRoutes from "@routes/v1/business.routes";
 import userRoutes from "@routes/v1/user.routes";
 import productRoutes from "@routes/v1/product.routes";
+import inventoryRoutes from "@routes/v1/inventory.routes";
 import categoryRoutes from "@routes/v1/category.routes";
 import unitRoutes from "@routes/v1/unit.routes";
 import dashboardRoutes from "@routes/v1/dashboard.routes";
@@ -52,6 +53,7 @@ class App {
     this.app.use(`${configEnv.API_BASE_PATH}/businesses`, businessRoutes);
     this.app.use(`${configEnv.API_BASE_PATH}/users`, userRoutes);
     this.app.use(`${configEnv.API_BASE_PATH}/products`, productRoutes);
+    this.app.use(`${configEnv.API_BASE_PATH}/inventory`, inventoryRoutes);
     this.app.use(`${configEnv.API_BASE_PATH}/categories`, categoryRoutes);
     this.app.use(`${configEnv.API_BASE_PATH}/units`, unitRoutes);
     this.app.use(`${configEnv.API_BASE_PATH}/dashboard`, dashboardRoutes);

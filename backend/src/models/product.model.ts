@@ -5,20 +5,26 @@ export type ProductType = "standard" | "variant";
 export type BarcodeType = "EAN13" | "UPC" | "EAN8" | "CODE128" | "QR";
 export type ProductCurrency = "USD" | "KHR";
 
+export interface ProductAttributeDefinition {
+  name: string;
+  values: string[];
+}
+
 export interface ProductDocument extends Document {
   name: string;
-  sku: string;
+  sku: string | null;
   barcode: string | null;
   barcodeType: BarcodeType | null;
   description: string;
   category: Types.ObjectId;
   type: ProductType;
+  attributeDefinitions: ProductAttributeDefinition[];
   unit: Types.ObjectId;
-  costPrice: number;
-  sellingPrice: number;
+  costPrice: number | null;
+  sellingPrice: number | null;
   currency: ProductCurrency;
-  stockQuantity: number;
-  minimumStock: number;
+  stockQuantity: number | null;
+  minimumStock: number | null;
   status: ProductStatus;
   imageUrl: string | null;
   imagePublicId: string | null;
@@ -38,11 +44,14 @@ const productSchema = new Schema<ProductDocument>(
     },
     sku: {
       type: String,
-      required: true,
+      default: null,
       trim: true,
       uppercase: true,
       minlength: 1,
       maxlength: 50,
+      required: function (this: ProductDocument) {
+        return this.type === "standard";
+      },
     },
     barcode: {
       type: String,
@@ -70,6 +79,26 @@ const productSchema = new Schema<ProductDocument>(
       enum: ["standard", "variant"],
       default: "standard",
     },
+    attributeDefinitions: {
+      type: [
+        {
+          name: {
+            type: String,
+            required: true,
+            trim: true,
+          },
+          values: {
+            type: [String],
+            required: true,
+            validate: {
+              validator: (values: string[]) => values.length > 0,
+              message: "Each attribute must have at least one value",
+            },
+          },
+        },
+      ],
+      default: [],
+    },
     unit: {
       type: Schema.Types.ObjectId,
       ref: "Unit",
@@ -77,14 +106,19 @@ const productSchema = new Schema<ProductDocument>(
     },
     costPrice: {
       type: Number,
-      required: true,
+      default: null,
       min: 0,
-      default: 0,
+      required: function (this: ProductDocument) {
+        return this.type === "standard";
+      },
     },
     sellingPrice: {
       type: Number,
-      required: true,
+      default: null,
       min: 0,
+      required: function (this: ProductDocument) {
+        return this.type === "standard";
+      },
     },
     currency: {
       type: String,
@@ -93,20 +127,27 @@ const productSchema = new Schema<ProductDocument>(
     },
     stockQuantity: {
       type: Number,
-      required: true,
+      default: null,
       min: 0,
-      default: 0,
+      required: function (this: ProductDocument) {
+        return this.type === "standard";
+      },
       validate: {
-        validator: Number.isInteger,
+        validator: (value: number | null) =>
+          value === null || Number.isInteger(value),
         message: "Stock quantity must be an integer",
       },
     },
     minimumStock: {
       type: Number,
+      default: null,
       min: 0,
-      default: 0,
+      required: function (this: ProductDocument) {
+        return this.type === "standard";
+      },
       validate: {
-        validator: Number.isInteger,
+        validator: (value: number | null) =>
+          value === null || Number.isInteger(value),
         message: "Minimum stock must be an integer",
       },
     },
@@ -135,8 +176,17 @@ const productSchema = new Schema<ProductDocument>(
   },
 );
 
-// SKU must be unique only within the same business.
-productSchema.index({ businessId: 1, sku: 1 }, { unique: true });
+// Standard Product SKUs must be unique within the same business.
+// Variant Parent products do not own a sellable SKU.
+productSchema.index(
+  { businessId: 1, sku: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      sku: { $type: "string" },
+    },
+  },
+);
 
 // Support business-scoped product listing and sorting.
 productSchema.index({ businessId: 1, createdAt: -1 });

@@ -1,0 +1,274 @@
+import mongoose from "mongoose";
+
+import Product from "@models/product.model";
+import ProductVariant from "@models/product-variant.model";
+import InventoryBalance from "@models/inventory-balance.model";
+import StockMovement from "@models/stock-movement.model";
+import AppError from "@shared-errors/app.error";
+
+interface AdjustmentInput {
+  productId: string;
+  variantId?: string;
+  type: "adjustment_in" | "adjustment_out";
+  quantity: number;
+  reason: string;
+  idempotencyKey: string;
+}
+
+interface InventoryFilters {
+  productId?: string;
+  variantId?: string;
+  page?: number;
+  limit?: number;
+}
+
+interface MovementFilters extends InventoryFilters {
+  type?: "opening" | "adjustment_in" | "adjustment_out";
+}
+
+class InventoryService {
+  async adjust(
+    businessId: string,
+    userId: string,
+    input: AdjustmentInput,
+  ) {
+    const session = await mongoose.startSession();
+    let result: InstanceType<typeof StockMovement> | null = null;
+
+    try {
+      await session.withTransaction(async () => {
+        const existingMovement = await StockMovement.findOne({
+          businessId,
+          idempotencyKey: input.idempotencyKey,
+        }).session(session);
+
+        if (existingMovement) {
+          const sameRequest =
+            existingMovement.productId.toString() === input.productId &&
+            (existingMovement.variantId?.toString() ?? "") ===
+              (input.variantId ?? "") &&
+            existingMovement.type === input.type &&
+            existingMovement.quantity === input.quantity &&
+            existingMovement.reason === input.reason;
+
+          if (!sameRequest) {
+            throw new AppError(
+              "This idempotency key has already been used for another request.",
+              409,
+            );
+          }
+
+          result = existingMovement;
+          return;
+        }
+
+        const product = await Product.findOne({
+          _id: input.productId,
+          businessId,
+          status: "active",
+        }).session(session);
+
+        if (!product) {
+          throw new AppError("Active product not found.", 404);
+        }
+
+        if (input.variantId) {
+          if (product.type !== "variant") {
+            throw new AppError(
+              "A variant can only belong to a variant parent product.",
+              400,
+            );
+          }
+
+          const variant = await ProductVariant.findOne({
+            _id: input.variantId,
+            productId: product._id,
+            businessId,
+            status: "active",
+          }).session(session);
+
+          if (!variant) {
+            throw new AppError("Active product variant not found.", 404);
+          }
+        } else if (product.type !== "standard") {
+          throw new AppError(
+            "Select a specific variant before adjusting stock.",
+            400,
+          );
+        }
+
+        const balanceFilter = {
+          businessId: new mongoose.Types.ObjectId(businessId),
+          productId: product._id,
+          ...(input.variantId
+            ? { variantId: new mongoose.Types.ObjectId(input.variantId) }
+            : {}),
+        };
+
+        let balance = await InventoryBalance.findOne(balanceFilter).session(
+          session,
+        );
+
+        if (!balance) {
+          if (input.type === "adjustment_out") {
+            throw new AppError("Insufficient stock.", 409);
+          }
+
+          balance = new InventoryBalance({
+            ...balanceFilter,
+            quantityOnHand: 0,
+          });
+
+          await balance.save({ session });
+        }
+
+        const quantityBefore = balance.quantityOnHand;
+        const delta =
+          input.type === "adjustment_in"
+            ? input.quantity
+            : -input.quantity;
+
+        const updatedBalance = await InventoryBalance.findOneAndUpdate(
+          {
+            _id: balance._id,
+            businessId: new mongoose.Types.ObjectId(businessId),
+            quantityOnHand: { $gte: input.type === "adjustment_out"
+              ? input.quantity
+              : 0 },
+          },
+          {
+            $inc: { quantityOnHand: delta },
+          },
+          {
+            new: true,
+            session,
+            runValidators: true,
+          },
+        );
+
+        if (!updatedBalance) {
+          throw new AppError("Insufficient stock.", 409);
+        }
+
+        const movement = new StockMovement({
+          ...balanceFilter,
+          type: input.type,
+          quantity: input.quantity,
+          quantityBefore,
+          quantityAfter: updatedBalance.quantityOnHand,
+          reason: input.reason,
+          performedBy: new mongoose.Types.ObjectId(userId),
+          idempotencyKey: input.idempotencyKey,
+        });
+
+        await movement.save({ session });
+        result = movement;
+      });
+    } catch (error) {
+      if (
+        error instanceof mongoose.mongo.MongoServerError &&
+        error.code === 11000
+      ) {
+        const existing = await StockMovement.findOne({
+          businessId,
+          idempotencyKey: input.idempotencyKey,
+        });
+
+        if (existing) {
+          const sameRequest =
+            existing.productId.toString() === input.productId &&
+            (existing.variantId?.toString() ?? "") ===
+              (input.variantId ?? "") &&
+            existing.type === input.type &&
+            existing.quantity === input.quantity &&
+            existing.reason === input.reason;
+
+          if (sameRequest) return existing;
+
+          throw new AppError(
+            "This idempotency key has already been used for another request.",
+            409,
+          );
+        }
+      }
+
+      throw error;
+    } finally {
+      await session.endSession();
+    }
+
+    if (!result) {
+      throw new AppError("Stock adjustment failed.", 500);
+    }
+
+    return result;
+  }
+
+  async getAll(businessId: string, filters: InventoryFilters) {
+    const page = filters.page ?? 1;
+    const limit = filters.limit ?? 20;
+
+    const query = {
+      businessId,
+      ...(filters.productId ? { productId: filters.productId } : {}),
+      ...(filters.variantId ? { variantId: filters.variantId } : {}),
+    };
+
+    const [items, total] = await Promise.all([
+      InventoryBalance.find(query)
+        .populate("productId", "name sku type currency minimumStock")
+        .populate("variantId", "sku attributes currency minimumStock")
+        .sort({ updatedAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      InventoryBalance.countDocuments(query),
+    ]);
+
+    return {
+      items,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async getMovements(businessId: string, filters: MovementFilters) {
+    const page = filters.page ?? 1;
+    const limit = filters.limit ?? 20;
+
+    const query = {
+      businessId,
+      ...(filters.productId ? { productId: filters.productId } : {}),
+      ...(filters.variantId ? { variantId: filters.variantId } : {}),
+      ...(filters.type ? { type: filters.type } : {}),
+    };
+
+    const [items, total] = await Promise.all([
+      StockMovement.find(query)
+        .populate("productId", "name sku type")
+        .populate("variantId", "sku attributes")
+        .populate("performedBy", "name email")
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      StockMovement.countDocuments(query),
+    ]);
+
+    return {
+      items,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+}
+
+export default new InventoryService();

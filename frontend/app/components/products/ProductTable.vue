@@ -104,26 +104,16 @@ function toggleSelectAll() {
 }
 
 function getStockStatus(product: Product): string {
-  if (product.currentStock <= 0) {
-    return 'Out of Stock'
-  }
-
-  if (product.currentStock <= product.minimumStock) {
-    return 'Low Stock'
-  }
-
+  if (product.type === 'variant') return 'Managed by variants'
+  if (product.currentStock <= 0) return 'Out of Stock'
+  if (product.currentStock <= product.minimumStock) return 'Low Stock'
   return 'In Stock'
 }
 
 function getStockClass(product: Product): string {
-  if (product.currentStock <= 0) {
-    return 'out-of-stock'
-  }
-
-  if (product.currentStock <= product.minimumStock) {
-    return 'low-stock'
-  }
-
+  if (product.type === 'variant') return 'variant-stock'
+  if (product.currentStock <= 0) return 'out-of-stock'
+  if (product.currentStock <= product.minimumStock) return 'low-stock'
   return 'in-stock'
 }
 </script>
@@ -197,23 +187,23 @@ function getStockClass(product: Product): string {
 
         <td class="price-column">
           <span class="price-value">
-            {{ product.costPrice.toLocaleString() }}
-            <small>{{ product.currency }}</small>
+            {{ product.type === 'standard' ? product.costPrice.toLocaleString() : '—' }}
+            <small v-if="product.type === 'standard'">{{ product.currency }}</small>
           </span>
         </td>
 
         <td class="price-column">
           <span class="price-value selling-price">
-            {{ product.sellingPrice.toLocaleString() }}
-            <small>{{ product.currency }}</small>
+            {{ product.type === 'standard' ? product.sellingPrice.toLocaleString() : '—' }}
+            <small v-if="product.type === 'standard'">{{ product.currency }}</small>
           </span>
         </td>
 
         <td class="stock-column">
           <div class="stock-cell">
             <strong>
-              {{ product.currentStock }}
-              <small>{{ product.unit.symbol }}</small>
+              {{ product.type === 'standard' ? product.currentStock : '—' }}
+              <small v-if="product.type === 'standard'">{{ product.unit.symbol }}</small>
             </strong>
 
             <span :class="[
@@ -466,6 +456,11 @@ function getStockClass(product: Product): string {
   &.out-of-stock {
     color: #b91c1c;
     background: #fee2e2;
+  }
+
+  &.variant-stock {
+    color: #475569;
+    background: #f1f5f9;
   }
 }
 

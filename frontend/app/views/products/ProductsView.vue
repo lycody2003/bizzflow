@@ -113,14 +113,19 @@ const filteredProducts = computed(() => {
 
     let matchesStock = true
 
-    if (stockFilter.value === 'in-stock') {
-      matchesStock = product.currentStock > product.minimumStock
-    } else if (stockFilter.value === 'low-stock') {
-      matchesStock =
-        product.currentStock > 0 &&
-        product.currentStock <= product.minimumStock
-    } else if (stockFilter.value === 'out-of-stock') {
-      matchesStock = product.currentStock <= 0
+    // Variant parents do not own inventory.
+    if (stockFilter.value !== 'all') {
+      if (product.type !== 'standard') {
+        matchesStock = false
+      } else if (stockFilter.value === 'in-stock') {
+        matchesStock = product.currentStock > product.minimumStock
+      } else if (stockFilter.value === 'low-stock') {
+        matchesStock =
+          product.currentStock > 0 &&
+          product.currentStock <= product.minimumStock
+      } else if (stockFilter.value === 'out-of-stock') {
+        matchesStock = product.currentStock <= 0
+      }
     }
 
     return matchesSearch &&
@@ -141,16 +146,34 @@ const filteredProducts = computed(() => {
         return (b.name ?? '').localeCompare(a.name ?? '')
 
       case 'price-asc':
-        return a.sellingPrice - b.sellingPrice
+      case 'price-desc': {
+        if (a.type !== b.type) {
+          return a.type === 'standard' ? -1 : 1
+        }
 
-      case 'price-desc':
-        return b.sellingPrice - a.sellingPrice
+        if (a.type !== 'standard' || b.type !== 'standard') {
+          return 0
+        }
+
+        return sortBy.value === 'price-asc'
+          ? a.sellingPrice - b.sellingPrice
+          : b.sellingPrice - a.sellingPrice
+      }
 
       case 'stock-asc':
-        return a.currentStock - b.currentStock
+      case 'stock-desc': {
+        if (a.type !== b.type) {
+          return a.type === 'standard' ? -1 : 1
+        }
 
-      case 'stock-desc':
-        return b.currentStock - a.currentStock
+        if (a.type !== 'standard' || b.type !== 'standard') {
+          return 0
+        }
+
+        return sortBy.value === 'stock-asc'
+          ? a.currentStock - b.currentStock
+          : b.currentStock - a.currentStock
+      }
 
       case 'newest':
       default:
@@ -480,20 +503,28 @@ async function handleUpdateProduct(payload: ProductFormSubmitPayload) {
   let productUpdated = false
 
   try {
-    const updateData: UpdateProductInput = {
-      name: payload.data.name,
-      sku: payload.data.sku,
-      barcode: payload.data.barcode,
-      barcodeType: payload.data.barcodeType,
-      description: payload.data.description,
-      category: payload.data.category,
-      type: payload.data.type,
-      unit: payload.data.unit,
-      costPrice: payload.data.costPrice,
-      sellingPrice: payload.data.sellingPrice,
-      currency: payload.data.currency,
-      minimumStock: payload.data.minimumStock,
-    }
+    const updateData: UpdateProductInput =
+      payload.data.type === 'standard'
+        ? {
+            name: payload.data.name,
+            sku: payload.data.sku,
+            barcode: payload.data.barcode,
+            barcodeType: payload.data.barcodeType,
+            description: payload.data.description,
+            category: payload.data.category,
+            unit: payload.data.unit,
+            costPrice: payload.data.costPrice,
+            sellingPrice: payload.data.sellingPrice,
+            currency: payload.data.currency,
+            minimumStock: payload.data.minimumStock,
+          }
+        : {
+            name: payload.data.name,
+            description: payload.data.description,
+            category: payload.data.category,
+            unit: payload.data.unit,
+            attributeDefinitions: payload.data.attributeDefinitions,
+          }
 
     await productService.updateProduct(
       product.id,

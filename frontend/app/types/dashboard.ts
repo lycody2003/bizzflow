@@ -4,6 +4,7 @@ export type DashboardCurrency = "USD" | "KHR";
 export interface DashboardBusiness {
   id: string;
   name: string;
+  logoUrl: string | null;
   role: string;
 }
 
@@ -80,6 +81,7 @@ export interface DashboardCurrencyValues {
 export interface DashboardOverview {
   totalProducts: number;
   activeProducts: number;
+  totalVariants: number;
   lowStockProducts: number;
   outOfStockProducts: number;
   inventoryCostValue: DashboardCurrencyValues;

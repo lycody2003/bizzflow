@@ -172,9 +172,43 @@ export default function useApi() {
         },
       )
     } catch (error: unknown) {
-      const status = (
-        error as { response?: { status?: number } }
-      ).response?.status
+      const requestError = error as {
+        response?: {
+          status?: number
+          _data?: { message?: string }
+        }
+        data?: { message?: string }
+      }
+
+      const status = requestError.response?.status
+      const errorMessage =
+        requestError.data?.message ??
+        requestError.response?._data?.message
+
+      // Retry only the specific CSRF validation error, once.
+      if (
+        status === 403 &&
+        requiresCsrf &&
+        errorMessage === 'Invalid CSRF token'
+      ) {
+        clearCsrfToken()
+
+        const freshToken = await getCsrfToken(true)
+
+        return $fetch<ApiResponse<T>>(
+          `${config.public.apiBase}${endpoint}`,
+          {
+            method,
+            body,
+            query,
+            headers: {
+              ...headers,
+              'X-CSRF-Token': freshToken,
+            },
+            credentials: 'include',
+          },
+        )
+      }
 
       if (
         status !== 401 ||
@@ -207,6 +241,7 @@ export default function useApi() {
         {
           method,
           body,
+          query,
           headers: {
             ...headers,
             Authorization: `Bearer ${newAccessToken}`,

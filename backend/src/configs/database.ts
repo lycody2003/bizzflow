@@ -18,6 +18,7 @@ class Database {
 
     await mongoose.connect(configEnv.MONGODB_URI, {
       dbName,
+      autoIndex: false,
       serverSelectionTimeoutMS: 10000,
       maxPoolSize: 10,
     })

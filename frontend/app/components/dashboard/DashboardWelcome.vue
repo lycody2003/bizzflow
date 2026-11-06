@@ -1,4 +1,3 @@
-
 <script setup lang="ts">
 import { computed } from 'vue'
 import useAuthStore from '../../stores/auth.store'
@@ -46,10 +45,13 @@ const currentDate = computed(() => {
       </p>
     </div>
 
-    <div class="welcome-date">
-      <span class="date-icon">▦</span>
+    <div class="welcome-actions">
+      <div class="welcome-date">
+        <span class="date-icon">▦</span>
+        <span>{{ currentDate }}</span>
+      </div>
 
-      <span>{{ currentDate }}</span>
+      <slot name="actions" />
     </div>
   </section>
 </template>
@@ -57,7 +59,7 @@ const currentDate = computed(() => {
 <style lang="scss" scoped>
 .dashboard-welcome {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
   margin-bottom: 28px;
@@ -65,6 +67,14 @@ const currentDate = computed(() => {
 
 .welcome-content {
   min-width: 0;
+}
+
+.welcome-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-shrink: 0;
 }
 
 .welcome-label {
@@ -115,6 +125,11 @@ p {
     flex-direction: column;
     gap: 16px;
     margin-bottom: 22px;
+  }
+
+  .welcome-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
   }
 
   .welcome-date {

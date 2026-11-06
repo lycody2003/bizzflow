@@ -1,4 +1,3 @@
-
 <script setup lang="ts">
 import {
   computed,
@@ -25,6 +24,7 @@ import type {
   ProductCurrency,
   ProductType,
   Product,
+  ProductAttributeDefinition,
 } from '@app-types/product'
 
 import type { Category } from '@app-types/category'
@@ -45,6 +45,7 @@ const props = defineProps<{
   initialImageUrl?: string | null
   categories?: Category[]
   units: Unit[]
+  hasExistingVariants?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -138,18 +139,52 @@ function generateInternalBarcode(): string {
 
 const form = reactive({
   name: props.initialProduct?.name ?? '',
-  sku: props.initialProduct?.sku ?? '',
-  barcode: props.initialProduct?.barcode ?? generateInternalBarcode(),
-  barcodeType: (props.initialProduct?.barcodeType ?? 'CODE128') as BarcodeType,
+  sku: props.initialProduct?.type === 'standard' ? props.initialProduct.sku : '',
+  barcode: props.initialProduct?.type === 'standard'
+    ? props.initialProduct.barcode ?? ''
+    : generateInternalBarcode(),
+  barcodeType: (props.initialProduct?.type === 'standard'
+    ? props.initialProduct.barcodeType ?? 'CODE128'
+    : 'CODE128') as BarcodeType,
   description: props.initialProduct?.description ?? '',
   category: props.initialProduct?.category ?? '',
   type: (props.initialProduct?.type ?? 'standard') as ProductType,
   unit: props.initialProduct?.unit.id ?? props.units.find(unit => unit.isActive)?.id ?? '',
-  costPrice: props.initialProduct?.costPrice ?? 0,
-  sellingPrice: props.initialProduct?.sellingPrice ?? 0,
+  costPrice: props.initialProduct?.type === 'standard' ? props.initialProduct.costPrice : 0,
+  sellingPrice: props.initialProduct?.type === 'standard' ? props.initialProduct.sellingPrice : 0,
   currency: (props.initialProduct?.currency ?? 'USD') as ProductCurrency,
-  minimumStock: props.initialProduct?.minimumStock ?? 0,
+  minimumStock: props.initialProduct?.type === 'standard' ? props.initialProduct.minimumStock : 0,
 })
+
+const attributeDefinitions = reactive(
+  (props.initialProduct?.type === 'variant'
+    ? props.initialProduct.attributeDefinitions
+    : [{ name: '', values: [] }])
+    .map(attribute => ({
+      name: attribute.name,
+      valuesText: attribute.values.join(', '),
+    })),
+)
+
+function addAttributeDefinition() {
+  if (attributeDefinitions.length >= 20) return
+  attributeDefinitions.push({ name: '', valuesText: '' })
+}
+
+function removeAttributeDefinition(index: number) {
+  if (attributeDefinitions.length <= 1) return
+  attributeDefinitions.splice(index, 1)
+}
+
+function getAttributeDefinitions(): ProductAttributeDefinition[] {
+  return attributeDefinitions.map(attribute => ({
+    name: attribute.name.trim(),
+    values: attribute.valuesText
+      .split(',')
+      .map(value => value.trim())
+      .filter(Boolean),
+  }))
+}
 
 watch(
   () => props.categories,
@@ -284,7 +319,7 @@ function validateForm(): string | null {
     return 'Product name is required.'
   }
 
-  if (!form.sku.trim()) {
+  if (form.type === 'standard' && !form.sku.trim()) {
     return 'Product SKU is required.'
   }
 
@@ -309,6 +344,34 @@ function validateForm(): string | null {
     selectedUnit.id !== props.initialProduct?.unit.id
   ) {
     return 'Please select an active product unit.'
+  }
+
+  if (form.type === 'variant') {
+    const definitions = getAttributeDefinitions()
+
+    if (!definitions.length || definitions.length > 20) {
+      return 'Variant products require between 1 and 20 attributes.'
+    }
+
+    if (definitions.some(attribute =>
+      !attribute.name || !attribute.values.length,
+    )) {
+      return 'Each attribute needs a name and at least one value.'
+    }
+
+    if (definitions.some(attribute =>
+      attribute.values.length > 100 ||
+      attribute.values.some(value => value.length > 100),
+    )) {
+      return 'Each attribute can contain up to 100 values, each up to 100 characters.'
+    }
+
+    const names = definitions.map(attribute => attribute.name.toLowerCase())
+    if (new Set(names).size !== names.length) {
+      return 'Attribute names must be unique.'
+    }
+
+    return null
   }
 
   if (!Number.isFinite(form.costPrice) || form.costPrice < 0) {
@@ -338,25 +401,31 @@ function handleSubmit() {
     return
   }
 
-  const barcode = barcodeMode.value === 'none'
-    ? null
-    : form.barcode.trim()
-
-  const data: CreateProductInput = {
+  const common = {
     businessId: props.businessId,
     name: form.name.trim(),
-    sku: form.sku.trim().toUpperCase(),
-    barcode,
-    barcodeType: barcode ? form.barcodeType : null,
     description: form.description.trim(),
     category: form.category,
-    type: form.type,
     unit: form.unit,
-    costPrice: Number(form.costPrice),
-    sellingPrice: Number(form.sellingPrice),
-    currency: form.currency,
-    minimumStock: Number(form.minimumStock),
   }
+
+  const data: CreateProductInput = form.type === 'variant'
+    ? {
+      ...common,
+      type: 'variant',
+      attributeDefinitions: getAttributeDefinitions(),
+    }
+    : {
+      ...common,
+      type: 'standard',
+      sku: form.sku.trim().toUpperCase(),
+      barcode: barcodeMode.value === 'none' ? null : form.barcode.trim(),
+      barcodeType: barcodeMode.value === 'none' ? null : form.barcodeType,
+      costPrice: Number(form.costPrice),
+      sellingPrice: Number(form.sellingPrice),
+      currency: form.currency,
+      minimumStock: Number(form.minimumStock),
+    }
 
   emit('submit', {
     data,
@@ -364,6 +433,11 @@ function handleSubmit() {
     removeImage: removeImage.value,
   })
 }
+
+const isAttributeDefinitionsReadOnly = computed(() =>
+  props.initialProduct?.type === 'variant' &&
+  props.hasExistingVariants === true,
+)
 
 onBeforeUnmount(() => {
   if (localPreviewUrl.value) {
@@ -387,13 +461,8 @@ onBeforeUnmount(() => {
           </p>
         </div>
 
-        <button
-          type="button"
-          class="close-button"
-          aria-label="Close form"
-          :disabled="props.submitting"
-          @click="emit('cancel')"
-        >
+        <button type="button" class="close-button" aria-label="Close form" :disabled="props.submitting"
+          @click="emit('cancel')">
           ×
         </button>
       </header>
@@ -408,57 +477,32 @@ onBeforeUnmount(() => {
           <h3>Product Image</h3>
 
           <div class="image-upload-area">
-            <input
-              ref="imageInput"
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              hidden
-              :disabled="props.submitting"
-              @change="handleImageChange"
-            />
+            <input ref="imageInput" type="file" accept="image/jpeg,image/png,image/webp" hidden
+              :disabled="props.submitting" @change="handleImageChange" />
 
-            <div
-              v-if="previewImageUrl"
-              class="image-preview"
-            >
-              <img
-                :src="previewImageUrl"
-                alt="Product preview"
-              />
+            <div v-if="previewImageUrl" class="image-preview">
+              <img :src="previewImageUrl" alt="Product preview" />
 
               <span class="image-preview-label">
                 Product Image
               </span>
             </div>
 
-            <div
-              v-else
-              class="image-placeholder"
-            >
+            <div v-else class="image-placeholder">
               <ImagePlus :size="32" :stroke-width="1.5" />
               <strong>No product image</strong>
               <span>upload an image for this product</span>
             </div>
 
             <div class="image-upload-actions">
-              <button
-                type="button"
-                class="upload-image-button"
-                :disabled="props.submitting"
-                @click="openImagePicker"
-              >
+              <button type="button" class="upload-image-button" :disabled="props.submitting" @click="openImagePicker">
                 <Upload :size="16" />
 
                 {{ previewImageUrl ? 'Change Image' : 'Upload Image' }}
               </button>
 
-              <button
-                v-if="previewImageUrl || imageFile"
-                type="button"
-                class="remove-image-button"
-                :disabled="props.submitting"
-                @click="handleRemoveImage"
-              >
+              <button v-if="previewImageUrl || imageFile" type="button" class="remove-image-button"
+                :disabled="props.submitting" @click="handleRemoveImage">
                 <Trash2 :size="16" />
                 Remove
               </button>
@@ -477,49 +521,28 @@ onBeforeUnmount(() => {
           <div class="form-grid">
             <div class="field full-width">
               <label for="product-name">Product Name *</label>
-              <input
-                id="product-name"
-                v-model="form.name"
-                type="text"
-                placeholder="Enter product name"
-                required
-                :disabled="props.submitting"
-              />
+              <input id="product-name" v-model="form.name" type="text" placeholder="Enter product name" required
+                :disabled="props.submitting" />
             </div>
 
-            <div class="field">
+            <div v-if="form.type === 'standard'" class="field">
               <label for="product-sku">SKU *</label>
-              <input
-                id="product-sku"
-                v-model="form.sku"
-                type="text"
-                placeholder="e.g. MOUSE-001"
-                required
-                :disabled="props.submitting"
-              />
+              <input id="product-sku" v-model="form.sku" type="text" placeholder="e.g. MOUSE-001" required
+                :disabled="props.submitting" />
             </div>
 
             <div class="field">
               <label for="product-category">Category *</label>
-              <select
-                id="product-category"
-                v-model="form.category"
-                required
-                :disabled="props.submitting"
-              >
+              <select id="product-category" v-model="form.category" required :disabled="props.submitting">
                 <option value="" disabled>
                   Select a category
                 </option>
 
-                <option
-                  v-for="category in availableCategories"
-                  :key="category.id"
-                  :value="category.id"
-                >
+                <option v-for="category in availableCategories" :key="category.id" :value="category.id">
                   {{ category.name }}{{ !category.isActive ? ' (Inactive)' : '' }}
                 </option>
 
-                </select>
+              </select>
 
               <small v-if="availableCategories.length === 0">
                 No active categories available. Create a category before adding a product.
@@ -529,11 +552,8 @@ onBeforeUnmount(() => {
 
             <div class="field">
               <label for="product-type">Product Type *</label>
-              <select
-                id="product-type"
-                v-model="form.type"
-                :disabled="props.submitting"
-              >
+              <select id="product-type" v-model="form.type"
+                :disabled="props.submitting || Boolean(props.initialProduct)">
                 <option value="standard">Standard</option>
                 <option value="variant">Variant</option>
               </select>
@@ -541,18 +561,10 @@ onBeforeUnmount(() => {
 
             <div class="field">
               <label for="product-unit">Unit *</label>
-              <select
-                id="product-unit"
-                v-model="form.unit"
-                required
-                :disabled="props.submitting || availableUnits.length === 0"
-              >
+              <select id="product-unit" v-model="form.unit" required
+                :disabled="props.submitting || availableUnits.length === 0">
                 <option value="" disabled>Select a unit</option>
-                <option
-                  v-for="unit in availableUnits"
-                  :key="unit.id"
-                  :value="unit.id"
-                >
+                <option v-for="unit in availableUnits" :key="unit.id" :value="unit.id">
                   {{ unit.name }} ({{ unit.symbol }}){{ !unit.isActive ? ' — Inactive (current)' : '' }}
                 </option>
               </select>
@@ -564,19 +576,61 @@ onBeforeUnmount(() => {
 
             <div class="field full-width">
               <label for="product-description">Description</label>
-              <textarea
-                id="product-description"
-                v-model="form.description"
-                rows="3"
-                placeholder="Enter product description"
-                :disabled="props.submitting"
-              />
+              <textarea id="product-description" v-model="form.description" rows="3"
+                placeholder="Enter product description" :disabled="props.submitting" />
             </div>
           </div>
         </section>
 
+        <!-- Variant Attributes -->
+        <section v-if="form.type === 'variant'" class="form-section">
+          <h3>Variant Attributes</h3>
+
+          <p class="section-description">
+            Define the options customers can choose, such as Color and Size.
+            Separate multiple values with commas.
+          </p>
+
+          <p v-if="isAttributeDefinitionsReadOnly" class="attribute-readonly-message">
+            You can add new values, but existing attribute names and attributes cannot be removed while variants exist.
+          </p>
+
+          <div v-for="(attribute, index) in attributeDefinitions" :key="index" class="form-grid"
+            style="margin-bottom: 12px">
+            <div class="field">
+              <label :for="`attribute-name-${index}`">Attribute Name</label>
+
+              <input :id="`attribute-name-${index}`" v-model="attribute.name" type="text" maxlength="50"
+                placeholder="e.g. Color" :disabled="props.submitting || isAttributeDefinitionsReadOnly" />
+            </div>
+
+            <div class="field">
+              <label :for="`attribute-values-${index}`">Values</label>
+
+              <input :id="`attribute-values-${index}`" v-model="attribute.valuesText" type="text"
+                placeholder="e.g. Red, Blue, Black" :disabled="props.submitting" />
+            </div>
+
+            <div class="field full-width">
+              <button v-if="attributeDefinitions.length > 1" type="button" class="remove-image-button"
+                :disabled="props.submitting || isAttributeDefinitionsReadOnly"
+                @click="removeAttributeDefinition(index)">
+                <Trash2 :size="15" />
+                Remove Attribute
+              </button>
+            </div>
+          </div>
+
+          <button type="button" class="upload-image-button" :disabled="props.submitting ||
+            Boolean(props.initialProduct) ||
+            attributeDefinitions.length >= 20
+            " @click="addAttributeDefinition">
+            Add Attribute
+          </button>
+        </section>
+
         <!-- Barcode -->
-        <section class="form-section">
+        <section v-if="form.type === 'standard'" class="form-section">
           <h3>Barcode</h3>
 
           <p class="section-description">
@@ -584,13 +638,8 @@ onBeforeUnmount(() => {
           </p>
 
           <div class="barcode-modes">
-            <button
-              type="button"
-              class="barcode-mode"
-              :class="{ selected: barcodeMode === 'auto' }"
-              :disabled="props.submitting"
-              @click="handleBarcodeModeChange('auto')"
-            >
+            <button type="button" class="barcode-mode" :class="{ selected: barcodeMode === 'auto' }"
+              :disabled="props.submitting" @click="handleBarcodeModeChange('auto')">
               <span class="mode-icon">
                 <WandSparkles :size="22" :stroke-width="1.8" />
               </span>
@@ -600,20 +649,11 @@ onBeforeUnmount(() => {
                 <small>Generate an internal CODE128 barcode.</small>
               </span>
 
-              <CheckCircle2
-                v-if="barcodeMode === 'auto'"
-                :size="20"
-                class="selected-icon"
-              />
+              <CheckCircle2 v-if="barcodeMode === 'auto'" :size="20" class="selected-icon" />
             </button>
 
-            <button
-              type="button"
-              class="barcode-mode"
-              :class="{ selected: barcodeMode === 'manual' }"
-              :disabled="props.submitting"
-              @click="handleBarcodeModeChange('manual')"
-            >
+            <button type="button" class="barcode-mode" :class="{ selected: barcodeMode === 'manual' }"
+              :disabled="props.submitting" @click="handleBarcodeModeChange('manual')">
               <span class="mode-icon">
                 <Keyboard :size="22" :stroke-width="1.8" />
               </span>
@@ -623,20 +663,11 @@ onBeforeUnmount(() => {
                 <small>Enter an existing barcode yourself.</small>
               </span>
 
-              <CheckCircle2
-                v-if="barcodeMode === 'manual'"
-                :size="20"
-                class="selected-icon"
-              />
+              <CheckCircle2 v-if="barcodeMode === 'manual'" :size="20" class="selected-icon" />
             </button>
 
-            <button
-              type="button"
-              class="barcode-mode"
-              :class="{ selected: barcodeMode === 'none' }"
-              :disabled="props.submitting"
-              @click="handleBarcodeModeChange('none')"
-            >
+            <button type="button" class="barcode-mode" :class="{ selected: barcodeMode === 'none' }"
+              :disabled="props.submitting" @click="handleBarcodeModeChange('none')">
               <span class="mode-icon">
                 <Ban :size="22" :stroke-width="1.8" />
               </span>
@@ -646,31 +677,18 @@ onBeforeUnmount(() => {
                 <small>Create this product without a barcode.</small>
               </span>
 
-              <CheckCircle2
-                v-if="barcodeMode === 'none'"
-                :size="20"
-                class="selected-icon"
-              />
+              <CheckCircle2 v-if="barcodeMode === 'none'" :size="20" class="selected-icon" />
             </button>
           </div>
 
-          <div
-            v-if="barcodeMode !== 'none'"
-            class="barcode-fields"
-          >
+          <div v-if="barcodeMode !== 'none'" class="barcode-fields">
             <div class="field">
               <label for="product-barcode">Barcode *</label>
 
-              <input
-                id="product-barcode"
-                v-model="form.barcode"
-                type="text"
-                :readonly="barcodeMode === 'auto'"
+              <input id="product-barcode" v-model="form.barcode" type="text" :readonly="barcodeMode === 'auto'"
                 :placeholder="barcodeMode === 'auto'
                   ? 'Generated automatically'
-                  : 'Enter barcode value'"
-                :disabled="props.submitting"
-              />
+                  : 'Enter barcode value'" :disabled="props.submitting" />
 
               <small v-if="barcodeMode === 'auto'">
                 Automatically generated internal barcode.
@@ -680,11 +698,8 @@ onBeforeUnmount(() => {
             <div class="field">
               <label for="product-barcode-type">Barcode Type *</label>
 
-              <select
-                id="product-barcode-type"
-                v-model="form.barcodeType"
-                :disabled="barcodeMode === 'auto' || props.submitting"
-              >
+              <select id="product-barcode-type" v-model="form.barcodeType"
+                :disabled="barcodeMode === 'auto' || props.submitting">
                 <option value="CODE128">CODE128</option>
                 <option value="EAN13">EAN13</option>
                 <option value="UPC">UPC</option>
@@ -702,10 +717,7 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <div
-            v-if="barcodeMode === 'auto'"
-            class="barcode-notice"
-          >
+          <div v-if="barcodeMode === 'auto'" class="barcode-notice">
             <Info :size="16" :stroke-width="1.8" />
 
             <span>
@@ -716,46 +728,28 @@ onBeforeUnmount(() => {
         </section>
 
         <!-- Pricing & Inventory -->
-        <section class="form-section">
+        <section v-if="form.type === 'standard'" class="form-section">
           <h3>Pricing & Inventory</h3>
 
           <div class="form-grid">
             <div class="field">
               <label for="product-cost">Cost Price *</label>
 
-              <input
-                id="product-cost"
-                v-model.number="form.costPrice"
-                type="number"
-                min="0"
-                step="any"
-                required
-                :disabled="props.submitting"
-              />
+              <input id="product-cost" v-model.number="form.costPrice" type="number" min="0" step="any" required
+                :disabled="props.submitting" />
             </div>
 
             <div class="field">
               <label for="product-selling">Selling Price *</label>
 
-              <input
-                id="product-selling"
-                v-model.number="form.sellingPrice"
-                type="number"
-                min="0"
-                step="any"
-                required
-                :disabled="props.submitting"
-              />
+              <input id="product-selling" v-model.number="form.sellingPrice" type="number" min="0" step="any" required
+                :disabled="props.submitting" />
             </div>
 
             <div class="field">
               <label for="product-currency">Currency *</label>
 
-              <select
-                id="product-currency"
-                v-model="form.currency"
-                :disabled="props.submitting"
-              >
+              <select id="product-currency" v-model="form.currency" :disabled="props.submitting">
                 <option value="USD">USD</option>
                 <option value="KHR">KHR</option>
               </select>
@@ -764,35 +758,19 @@ onBeforeUnmount(() => {
             <div class="field">
               <label for="product-minimum-stock">Minimum Stock *</label>
 
-              <input
-                id="product-minimum-stock"
-                v-model.number="form.minimumStock"
-                type="number"
-                min="0"
-                step="any"
-                required
-                :disabled="props.submitting"
-              />
+              <input id="product-minimum-stock" v-model.number="form.minimumStock" type="number" min="0" step="any"
+                required :disabled="props.submitting" />
             </div>
           </div>
         </section>
 
         <!-- Actions -->
         <footer class="form-actions">
-          <button
-            type="button"
-            class="cancel-button"
-            :disabled="props.submitting"
-            @click="emit('cancel')"
-          >
+          <button type="button" class="cancel-button" :disabled="props.submitting" @click="emit('cancel')">
             Cancel
           </button>
 
-          <button
-            type="submit"
-            class="submit-button"
-            :disabled="props.submitting"
-          >
+          <button type="submit" class="submit-button" :disabled="props.submitting">
             {{
               props.submitting
                 ? 'Saving...'

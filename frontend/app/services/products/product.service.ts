@@ -36,23 +36,53 @@ export class ProductService {
     this.validateBusinessId(data.businessId)
     this.validateProductData(data)
 
-    const barcode = data.barcode?.trim() || null
-    const barcodeType = barcode ? data.barcodeType ?? null : null
-
-    this.validateBarcode(barcode, barcodeType)
-
-    const normalizedData: CreateProductInput = {
+    const common = {
       ...data,
       name: data.name.trim(),
-      sku: data.sku.trim().toUpperCase(),
-      barcode,
-      barcodeType,
       description: data.description?.trim() ?? '',
       category: data.category.trim(),
       unit: data.unit.trim(),
     }
 
-    return this.repository.create(normalizedData)
+    if (data.type === 'variant') {
+      const definitions = data.attributeDefinitions.map(attribute => ({
+        name: attribute.name.trim(),
+        values: attribute.values.map(value => value.trim()),
+      }))
+
+      if (
+        definitions.length === 0 ||
+        definitions.some(attribute =>
+          !attribute.name || attribute.values.length === 0 ||
+          attribute.values.some(value => !value),
+        )
+      ) {
+        throw new Error('Variant products require valid attribute definitions.')
+      }
+
+      return this.repository.create({
+        ...common,
+        type: 'variant',
+        attributeDefinitions: definitions,
+      })
+    }
+
+    const barcode = data.barcode?.trim() || null
+    const barcodeType = barcode ? data.barcodeType ?? null : null
+
+    this.validateBarcode(barcode, barcodeType)
+
+    return this.repository.create({
+      ...common,
+      type: 'standard',
+      sku: data.sku.trim().toUpperCase(),
+      barcode,
+      barcodeType,
+      costPrice: data.costPrice,
+      sellingPrice: data.sellingPrice,
+      currency: data.currency,
+      minimumStock: data.minimumStock,
+    })
   }
 
   async updateProduct(
@@ -73,13 +103,29 @@ export class ProductService {
       throw new Error('Product not found.')
     }
 
-    const nextBarcode = data.barcode === undefined
-      ? existingProduct.barcode
-      : data.barcode?.trim() || null
+    // Variant Parent and Standard Product have different fields.
+    if (existingProduct.type === 'variant') {
+      const standardOnlyFields = [
+        'sku',
+        'barcode',
+        'barcodeType',
+        'costPrice',
+        'sellingPrice',
+        'minimumStock',
+      ] as const
 
-    const nextBarcodeType = data.barcodeType === undefined
-      ? existingProduct.barcodeType
-      : data.barcodeType
+      for (const field of standardOnlyFields) {
+        if (data[field] !== undefined) {
+          throw new Error(
+            `Cannot update ${field} on a variant parent product.`,
+          )
+        }
+      }
+    } else if (data.attributeDefinitions !== undefined) {
+      throw new Error(
+        'Attribute definitions can only be updated on variant products.',
+      )
+    }
 
     const normalizedData: UpdateProductInput = {
       ...data,
@@ -104,24 +150,83 @@ export class ProductService {
         ? { unit: data.unit.trim() }
         : {}),
 
-      ...(data.barcode !== undefined || data.barcodeType !== undefined
+      ...(data.attributeDefinitions !== undefined
         ? {
-            barcode: nextBarcode,
-            barcodeType: nextBarcode ? nextBarcodeType : null,
+            attributeDefinitions: this.normalizeAttributeDefinitions(
+              data.attributeDefinitions,
+            ),
           }
         : {}),
     }
 
-    this.validateBarcode(
-      nextBarcode,
-      nextBarcode ? nextBarcodeType : null,
-    )
+    // Barcode validation only applies to Standard Products.
+    if (existingProduct.type === 'standard') {
+      const nextBarcode = data.barcode === undefined
+        ? existingProduct.barcode
+        : data.barcode?.trim() || null
+
+      const nextBarcodeType = data.barcodeType === undefined
+        ? existingProduct.barcodeType
+        : data.barcodeType
+
+      if (
+        data.barcode !== undefined ||
+        data.barcodeType !== undefined
+      ) {
+        normalizedData.barcode = nextBarcode
+        normalizedData.barcodeType = nextBarcode
+          ? nextBarcodeType
+          : null
+      }
+
+      this.validateBarcode(
+        nextBarcode,
+        nextBarcode ? nextBarcodeType : null,
+      )
+    }
 
     return this.repository.update(
       id,
       businessId,
       normalizedData,
     )
+  }
+
+  private normalizeAttributeDefinitions(
+    definitions: UpdateProductInput['attributeDefinitions'],
+  ) {
+    if (!definitions) {
+      return undefined
+    }
+
+    if (definitions.length === 0 || definitions.length > 20) {
+      throw new Error(
+        'Variant products require between 1 and 20 attribute definitions.',
+      )
+    }
+
+    const normalized = definitions.map(attribute => ({
+      name: attribute.name.trim(),
+      values: attribute.values.map(value => value.trim()),
+    }))
+
+    for (const attribute of normalized) {
+      if (
+        !attribute.name ||
+        attribute.name.length > 50 ||
+        attribute.values.length === 0 ||
+        attribute.values.length > 100 ||
+        attribute.values.some(
+          value => !value || value.length > 100,
+        )
+      ) {
+        throw new Error(
+          'Invalid variant attribute definition.',
+        )
+      }
+    }
+
+    return normalized
   }
 
   async deleteProduct(

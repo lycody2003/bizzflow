@@ -10,6 +10,7 @@ export default class DashboardApi {
     const response = await this.api.request<{
       id: string;
       name: string;
+      logoUrl: string | null;
     }>('/businesses/me', {
       requiresAuth: true,
     })
@@ -21,6 +22,7 @@ export default class DashboardApi {
     return [{
       id: response.data.id,
       name: response.data.name,
+      logoUrl: response.data.logoUrl ?? null,
       role: 'owner',
     }]
   }

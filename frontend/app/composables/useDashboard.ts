@@ -10,6 +10,7 @@ import type {
 const emptyOverview = (): DashboardOverview => ({
   totalProducts: 0,
   activeProducts: 0,
+  totalVariants: 0,
   lowStockProducts: 0,
   outOfStockProducts: 0,
   inventoryCostValue: { USD: 0, KHR: 0 },

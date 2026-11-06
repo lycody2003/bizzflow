@@ -5,111 +5,101 @@ const productTypeSchema = z.enum(["standard", "variant"]);
 const barcodeTypeSchema = z.enum(["EAN13", "UPC", "EAN8", "CODE128", "QR"]);
 const currencySchema = z.enum(["USD", "KHR"]);
 
-const productFields = {
-  name: z
-    .string()
-    .trim()
-    .min(2, "Product name must be at least 2 characters")
-    .max(150, "Product name cannot exceed 150 characters"),
+const objectIdSchema = z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid ID");
 
-  sku: z
-    .string()
-    .trim()
-    .min(1, "SKU is required")
-    .max(50, "SKU cannot exceed 50 characters")
-    .transform((value) => value.toUpperCase())
-    .pipe(
-      z.string().regex(
-        /^[A-Z0-9][A-Z0-9_-]*$/,
-        "SKU can only contain letters, numbers, hyphens, and underscores",
-      ),
+const skuSchema = z
+  .string()
+  .trim()
+  .min(1, "SKU is required")
+  .max(50, "SKU cannot exceed 50 characters")
+  .transform((value) => value.toUpperCase())
+  .pipe(
+    z.string().regex(
+      /^[A-Z0-9][A-Z0-9_-]*$/,
+      "SKU can only contain letters, numbers, hyphens, and underscores",
     ),
+  );
 
+const attributeDefinitionSchema = z.object({
+  name: z.string().trim().min(1).max(50),
+  values: z
+    .array(z.string().trim().min(1).max(100))
+    .min(1)
+    .max(100),
+});
+
+const baseProductFields = {
+  name: z.string().trim().min(2).max(150),
   barcode: z.string().trim().max(100).nullable().optional(),
   barcodeType: barcodeTypeSchema.nullable().optional(),
-
-  description: z
-    .string()
-    .trim()
-    .max(2000, "Description cannot exceed 2000 characters")
-    .optional(),
-
-  category: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid category ID"),
-
-  type: productTypeSchema.optional(),
-  unit: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid unit ID"),
-
-  costPrice: z.number().finite().min(0, "Cost price cannot be negative"),
-  sellingPrice: z.number().finite().min(0, "Selling price cannot be negative"),
-
+  description: z.string().trim().max(2000).optional(),
+  category: objectIdSchema,
+  type: productTypeSchema.default("standard"),
+  unit: objectIdSchema,
   currency: currencySchema.optional(),
-
-  stockQuantity: z
-    .number()
-    .int("Stock quantity must be an integer")
-    .min(0, "Stock quantity cannot be negative")
-    .optional(),
-
-  minimumStock: z
-    .number()
-    .int("Minimum stock must be an integer")
-    .min(0, "Minimum stock cannot be negative")
-    .optional(),
-
-  status: productStatusSchema,
+  status: productStatusSchema.optional(),
 };
+
+const standardProductSchema = z.object({
+  ...baseProductFields,
+  type: z.literal("standard"),
+  sku: skuSchema,
+  costPrice: z.number().finite().min(0),
+  sellingPrice: z.number().finite().min(0),
+  stockQuantity: z.number().int().min(0).optional(),
+  minimumStock: z.number().int().min(0).optional(),
+  attributeDefinitions: z.array(attributeDefinitionSchema).max(20).optional(),
+});
+
+const variantProductSchema = z.object({
+  ...baseProductFields,
+  type: z.literal("variant"),
+  attributeDefinitions: z.array(attributeDefinitionSchema).min(1).max(20),
+}).strict();
+
+const createProductBodySchema = z.discriminatedUnion("type", [
+  standardProductSchema,
+  variantProductSchema,
+]).or(
+  standardProductSchema.extend({
+    type: z.undefined().optional(),
+  }),
+);
+
+const updateProductBodySchema = z.object({
+  name: baseProductFields.name.optional(),
+  barcode: baseProductFields.barcode,
+  barcodeType: baseProductFields.barcodeType,
+  description: baseProductFields.description,
+  category: objectIdSchema.optional(),
+  unit: objectIdSchema.optional(),
+  currency: currencySchema.optional(),
+  status: productStatusSchema.optional(),
+  attributeDefinitions: z.array(attributeDefinitionSchema).max(20).optional(),
+  sku: skuSchema.optional(),
+  costPrice: z.number().finite().min(0).optional(),
+  sellingPrice: z.number().finite().min(0).optional(),
+  minimumStock: z.number().int().min(0).optional(),
+}).strict().refine(
+  (data) => Object.keys(data).length > 0,
+  "At least one field is required for update",
+);
 
 class ProductValidation {
   readonly create = z.object({
-    body: z.object({
-      name: productFields.name,
-      sku: productFields.sku,
-      barcode: productFields.barcode,
-      barcodeType: productFields.barcodeType,
-      description: productFields.description,
-      category: productFields.category,
-      type: productFields.type,
-      unit: productFields.unit,
-      costPrice: productFields.costPrice,
-      sellingPrice: productFields.sellingPrice,
-      currency: productFields.currency,
-      stockQuantity: productFields.stockQuantity,
-      minimumStock: productFields.minimumStock,
-      status: productFields.status.optional(),
-    }),
+    body: createProductBodySchema,
   });
 
   readonly update = z.object({
     params: z.object({
-      id: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid product ID"),
+      id: objectIdSchema,
     }),
-
-    body: z
-      .object({
-        name: productFields.name.optional(),
-        sku: productFields.sku.optional(),
-        barcode: productFields.barcode,
-        barcodeType: productFields.barcodeType,
-        description: productFields.description,
-        category: productFields.category.optional(),
-        type: productFields.type,
-        unit: productFields.unit.optional(),
-        costPrice: productFields.costPrice.optional(),
-        sellingPrice: productFields.sellingPrice.optional(),
-        currency: productFields.currency,
-        stockQuantity: productFields.stockQuantity,
-        minimumStock: productFields.minimumStock,
-        status: productFields.status.optional(),
-      })
-      .refine(
-        (data) => Object.keys(data).length > 0,
-        "At least one field is required for update",
-      ),
+    body: updateProductBodySchema,
   });
 
   readonly getById = z.object({
     params: z.object({
-      id: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid product ID"),
+      id: objectIdSchema,
     }),
   });
 

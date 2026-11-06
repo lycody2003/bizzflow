@@ -44,7 +44,6 @@ const settingsChildren: NavigationItem[] = [
   { label: 'Units Setup', path: '/settings/units', icon: 'ruler' },
   { label: 'Roles', path: '/settings/roles', icon: 'shield-check' },
   { label: 'Permissions', path: '/settings/permissions', icon: 'lock-keyhole' },
-  { label: 'Currency Setup', path: '/settings/currency', icon: 'coins' },
 ]
 
 const isSettingsRoute = computed(() => route.path.startsWith('/settings'))
@@ -97,7 +96,7 @@ const handleToggle = () => {
     <!-- Sidebar Header -->
     <div class="sidebar-header">
       <NuxtLink to="/" class="brand" @click="handleNavigation">
-        <span class="brand-icon">B</span>
+        <img src="/bizzflow-icon.png" alt="BizzFlow Logo" class="brand-icon" />
 
         <span v-if="!isCollapsed || isMobileOpen" class="brand-name">
           BizzFlow
@@ -118,55 +117,30 @@ const handleToggle = () => {
         </p>
 
         <nav class="navigation-list">
-          <NuxtLink
-            v-for="item in mainNavigation"
-            :key="item.path"
-            :to="item.path"
-            class="navigation-item"
-            :class="{ active: isActive(item.path) }"
-            :title="isCollapsed && !isMobileOpen ? item.label : undefined"
-            :aria-label="item.label"
-            @click="handleNavigation"
-          >
+          <NuxtLink v-for="item in mainNavigation" :key="item.path" :to="item.path" class="navigation-item"
+            :class="{ active: isActive(item.path) }" :title="isCollapsed && !isMobileOpen ? item.label : undefined"
+            :aria-label="item.label" @click="handleNavigation">
             <Icon :name="`lucide:${item.icon}`" class="navigation-icon" />
             <span v-if="!isCollapsed || isMobileOpen" class="navigation-label">
               {{ item.label }}
             </span>
           </NuxtLink>
 
-          <button
-            type="button"
-            class="navigation-item settings-toggle"
-            :class="{ active: isSettingsRoute }"
-            :title="isCollapsed && !isMobileOpen ? 'Settings' : undefined"
-            :aria-expanded="isSettingsExpanded"
-            aria-controls="settings-submenu"
-            @click="toggleSettings"
-          >
+          <button type="button" class="navigation-item settings-toggle" :class="{ active: isSettingsRoute }"
+            :title="isCollapsed && !isMobileOpen ? 'Settings' : undefined" :aria-expanded="isSettingsExpanded"
+            aria-controls="settings-submenu" @click="toggleSettings">
             <Icon name="lucide:settings" class="navigation-icon" />
             <span v-if="!isCollapsed || isMobileOpen" class="navigation-label">
               Settings
             </span>
-            <Icon
-              v-if="!isCollapsed || isMobileOpen"
-              :name="isSettingsExpanded ? 'lucide:chevron-down' : 'lucide:chevron-right'"
-              class="submenu-chevron"
-            />
+            <Icon v-if="!isCollapsed || isMobileOpen"
+              :name="isSettingsExpanded ? 'lucide:chevron-down' : 'lucide:chevron-right'" class="submenu-chevron" />
           </button>
 
-          <div
-            v-if="isSettingsExpanded && (!isCollapsed || isMobileOpen)"
-            id="settings-submenu"
-            class="settings-submenu"
-          >
-            <NuxtLink
-              v-for="item in settingsChildren"
-              :key="item.path"
-              :to="item.path"
-              class="navigation-item submenu-item"
-              :class="{ active: isActive(item.path) }"
-              @click="handleNavigation"
-            >
+          <div v-if="isSettingsExpanded && (!isCollapsed || isMobileOpen)" id="settings-submenu"
+            class="settings-submenu">
+            <NuxtLink v-for="item in settingsChildren" :key="item.path" :to="item.path"
+              class="navigation-item submenu-item" :class="{ active: isActive(item.path) }" @click="handleNavigation">
               <Icon :name="`lucide:${item.icon}`" class="navigation-icon" />
               <span class="navigation-label">{{ item.label }}</span>
             </NuxtLink>
@@ -268,16 +242,11 @@ const handleToggle = () => {
 }
 
 .brand-icon {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
   flex-shrink: 0;
   border-radius: 10px;
-  color: #fff;
-  background: #6578f5;
-  font-size: 19px;
-  font-weight: 800;
 }
 
 .brand-name {

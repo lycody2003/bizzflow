@@ -1,119 +1,86 @@
-
 <script setup lang="ts">
-import { computed } from 'vue'
 import type { DashboardBusiness } from '../../types/dashboard'
 
-const props = defineProps<{
-  businesses: DashboardBusiness[]
-  modelValue: string
+defineProps<{
+  business: DashboardBusiness | null
 }>()
-
-const emit = defineEmits<{
-  'update:modelValue': [value: string]
-}>()
-
-const selectedBusiness = computed(() => {
-  return props.businesses.find(
-    business => business.id === props.modelValue,
-  )
-})
-
-function handleChange(event: Event): void {
-  const target = event.target as HTMLSelectElement
-
-  emit('update:modelValue', target.value)
-}
 </script>
 
 <template>
-  <div class="business-selector">
-    <div class="business-info">
-      <div class="business-icon">
-        {{ selectedBusiness?.name.charAt(0).toUpperCase() || 'B' }}
-      </div>
-
-      <div class="business-details">
-        <span class="business-label">CURRENT BUSINESS</span>
-
-        <strong>
-          {{ selectedBusiness?.name || 'Select a business' }}
-        </strong>
-
-        <span v-if="selectedBusiness" class="business-role">
-          {{ selectedBusiness.role }}
-        </span>
-      </div>
-    </div>
-
-    <div class="select-wrapper">
-      <select
-        :value="modelValue"
-        :disabled="businesses.length === 0"
-        aria-label="Select business"
-        @change="handleChange"
+  <section class="business-context">
+    <div class="business-logo" aria-hidden="true">
+      <img
+        v-if="business?.logoUrl"
+        :src="business.logoUrl"
+        :alt="`${business.name} logo`"
       >
-        <option value="" disabled>
-          Select a business
-        </option>
-
-        <option
-          v-for="business in businesses"
-          :key="business.id"
-          :value="business.id"
-        >
-          {{ business.name }}
-        </option>
-      </select>
-
-      <span class="select-arrow">⌄</span>
+      <span v-else>
+        {{ business?.name?.charAt(0).toUpperCase() || 'B' }}
+      </span>
     </div>
-  </div>
+
+    <div class="business-details">
+      <span class="business-label">CURRENT BUSINESS</span>
+      <strong>{{ business?.name || 'Business unavailable' }}</strong>
+      <span v-if="business" class="business-role">
+        {{ business.role }}
+      </span>
+    </div>
+
+    <span class="context-indicator">
+      <span class="status-dot" />
+      Active workspace
+    </span>
+  </section>
 </template>
 
 <style lang="scss" scoped>
-.business-selector {
+.business-context {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 16px 18px;
-  margin-bottom: 24px;
-  border: 1px solid #e8edf4;
-  border-radius: 12px;
-  background: #fff;
-}
-
-.business-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  gap: 13px;
   min-width: 0;
+  padding: 15px 18px;
+  margin-bottom: 24px;
+  border: 1px solid var(--color-border, #e8edf4);
+  border-radius: 12px;
+  background: var(--color-card, #fff);
 }
 
-.business-icon {
+.business-logo {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: 46px;
+  height: 46px;
   flex-shrink: 0;
-  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #e8edf4;
+  border-radius: 11px;
   background: #eaf0ff;
   color: #3979e8;
   font-size: 18px;
   font-weight: 750;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #fff;
+  }
 }
 
 .business-details {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 3px;
   min-width: 0;
 
   strong {
     overflow: hidden;
-    color: #172033;
-    font-size: 14px;
+    color: var(--color-text, #172033);
+    font-size: 13px;
     font-weight: 700;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -130,55 +97,33 @@ function handleChange(event: Event): void {
 .business-role {
   color: #7b8495;
   font-size: 11px;
+  text-transform: capitalize;
 }
 
-.select-wrapper {
-  position: relative;
+.context-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   flex-shrink: 0;
-
-  select {
-    min-width: 145px;
-    appearance: none;
-    padding: 10px 34px 10px 12px;
-    border: 1px solid #e5eaf1;
-    border-radius: 8px;
-    outline: none;
-    background: #fff;
-    color: #465268;
-    font-family: inherit;
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-  }
-
-  select:focus {
-    border-color: #3979e8;
-    box-shadow: 0 0 0 3px rgb(57 121 232 / 10%);
-  }
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 600;
 }
 
-.select-arrow {
-  position: absolute;
-  top: 50%;
-  right: 12px;
-  color: #64748b;
-  font-size: 16px;
-  pointer-events: none;
-  transform: translateY(-55%);
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #16a36a;
 }
 
 @media (max-width: 480px) {
-  .business-selector {
-    align-items: flex-start;
-    flex-direction: column;
+  .business-context {
+    padding: 13px;
   }
 
-  .select-wrapper {
-    width: 100%;
-
-    select {
-      width: 100%;
-    }
+  .context-indicator {
+    font-size: 0;
   }
 }
 </style>

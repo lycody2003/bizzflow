@@ -9,7 +9,10 @@
     "dev:pm2": "pm2-dev start src/server.ts --interpreter ./node_modules/.bin/tsx",
     "build": "tsc && tsc-alias",
     "start": "node dist/server.js",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "migrate:product-skus": "tsx scripts/migrations/migrate-product-skus.ts",
+    "migrate:variant-combination-keys": "tsx scripts/migrations/migrate-variant-combination-keys.ts",
+    "migrate:inventory-indexes": "tsx scripts/migrations/migrate-inventory-indexes.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

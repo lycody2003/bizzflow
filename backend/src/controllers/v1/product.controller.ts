@@ -5,12 +5,19 @@ import responseHelper from "@shared-helpers/response.helper";
 class ProductController {
   async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
+
       const product = await productService.create(
         req.auth!.businessId,
-        res.locals.validated.body
+        req.auth!.userId,
+        res.locals.validated.body,
       );
 
-      responseHelper.success(res, "Product created successfully.", product, 201);
+      responseHelper.success(
+        res,
+        "Product created successfully.",
+        product,
+        201,
+      );
     } catch (error) {
       next(error);
     }
@@ -20,7 +27,7 @@ class ProductController {
     try {
       const result = await productService.getAll(
         req.auth!.businessId,
-        res.locals.validated.query
+        res.locals.validated.query,
       );
 
       responseHelper.success(res, "Products retrieved successfully.", result);
@@ -29,11 +36,15 @@ class ProductController {
     }
   }
 
-  async getById(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async getById(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const product = await productService.getById(
         req.auth!.businessId,
-        res.locals.validated.params.id
+        res.locals.validated.params.id,
       );
 
       responseHelper.success(res, "Product retrieved successfully.", product);
@@ -47,7 +58,7 @@ class ProductController {
       const product = await productService.update(
         req.auth!.businessId,
         res.locals.validated.params.id,
-        res.locals.validated.body
+        res.locals.validated.body,
       );
 
       responseHelper.success(res, "Product updated successfully.", product);
@@ -60,7 +71,7 @@ class ProductController {
     try {
       const product = await productService.remove(
         req.auth!.businessId,
-        res.locals.validated.params.id
+        res.locals.validated.params.id,
       );
 
       responseHelper.success(res, "Product deactivated successfully.", product);

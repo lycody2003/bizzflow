@@ -1,4 +1,3 @@
-
 <script setup lang="ts">
 const productImageService = useProductImageService()
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
@@ -13,6 +12,16 @@ import ConfirmationDialog from '@components/common/ConfirmationDialog.vue'
 
 import type { Category } from '@app-types/category'
 import type { Unit } from '@app-types/unit'
+
+import ProductVariantList from '@components/products/ProductVariantList.vue'
+import ProductVariantForm from '@components/products/ProductVariantForm.vue'
+
+import type {
+  ProductVariant,
+  VariantProduct,
+  CreateProductVariantInput,
+  UpdateProductVariantInput,
+} from '@app-types/product'
 
 import type {
   Product,
@@ -37,12 +46,18 @@ const { business, loadBusiness } = useBusiness()
 const businessId = computed(() => business.value?.id ?? '')
 
 const product = ref<Product | null>(null)
+const hasExistingVariants = ref(false)
 
 const loading = ref(false)
 const saving = ref(false)
 
 const showEditForm = ref(false)
 const showConfirmation = ref(false)
+// Product Variant state
+const showVariantForm = ref(false)
+const selectedVariant = ref<ProductVariant | null>(null)
+const savingVariant = ref(false)
+const variantListKey = ref(0)
 
 const confirmationAction = ref<'archive' | 'restore'>('archive')
 
@@ -201,6 +216,17 @@ async function loadProduct() {
 
     product.value = result
 
+    if (result.type === 'variant') {
+      const variants = await productVariantService.getVariants(
+        result.id,
+        currentBusinessId,
+      )
+
+      hasExistingVariants.value = variants.length > 0
+    } else {
+      hasExistingVariants.value = false
+    }
+
     await loadDetailImage(
       result.id,
       currentBusinessId,
@@ -301,20 +327,32 @@ async function handleUpdateProduct(payload: ProductFormSubmitPayload) {
   let productUpdated = false
 
   try {
-    const updateData: UpdateProductInput = {
-      name: payload.data.name,
-      sku: payload.data.sku,
-      barcode: payload.data.barcode,
-      barcodeType: payload.data.barcodeType,
-      description: payload.data.description,
-      category: payload.data.category,
-      type: payload.data.type,
-      unit: payload.data.unit,
-      costPrice: payload.data.costPrice,
-      sellingPrice: payload.data.sellingPrice,
-      currency: payload.data.currency,
-      minimumStock: payload.data.minimumStock,
-    }
+    const updateData: UpdateProductInput =
+      payload.data.type === 'standard'
+        ? {
+          name: payload.data.name,
+          sku: payload.data.sku,
+          barcode: payload.data.barcode,
+          barcodeType: payload.data.barcodeType,
+          description: payload.data.description,
+          category: payload.data.category,
+          unit: payload.data.unit,
+          costPrice: payload.data.costPrice,
+          sellingPrice: payload.data.sellingPrice,
+          currency: payload.data.currency,
+          minimumStock: payload.data.minimumStock,
+        }
+        : {
+          name: payload.data.name,
+          description: payload.data.description,
+          category: payload.data.category,
+          unit: payload.data.unit,
+          ...(hasExistingVariants.value
+            ? {}
+            : {
+              attributeDefinitions: payload.data.attributeDefinitions,
+            }),
+        }
 
     await productService.updateProduct(
       currentProduct.id,
@@ -366,6 +404,103 @@ async function handleUpdateProduct(payload: ProductFormSubmitPayload) {
     }
   } finally {
     saving.value = false
+  }
+}
+
+function openCreateVariantForm() {
+  if (
+    !product.value ||
+    product.value.type !== 'variant' ||
+    product.value.status !== 'active' ||
+    savingVariant.value
+  ) {
+    return
+  }
+
+  selectedVariant.value = null
+  showVariantForm.value = true
+  error.value = null
+  successMessage.value = null
+}
+
+function openEditVariantForm(variant: ProductVariant) {
+  if (
+    !product.value ||
+    product.value.type !== 'variant' ||
+    product.value.status !== 'active' ||
+    variant.status !== 'active' ||
+    savingVariant.value
+  ) {
+    return
+  }
+
+  selectedVariant.value = variant
+  showVariantForm.value = true
+  error.value = null
+  successMessage.value = null
+}
+
+function closeVariantForm() {
+  if (savingVariant.value) return
+
+  showVariantForm.value = false
+  selectedVariant.value = null
+}
+
+async function handleVariantSubmit(
+  payload: CreateProductVariantInput | UpdateProductVariantInput,
+) {
+  const currentProduct = product.value
+  const currentBusinessId = businessId.value
+
+  if (
+    !currentProduct ||
+    currentProduct.type !== 'variant' ||
+    savingVariant.value
+  ) {
+    return
+  }
+
+  if (!currentBusinessId) {
+    error.value = 'Business information is unavailable.'
+    return
+  }
+
+  savingVariant.value = true
+  error.value = null
+  successMessage.value = null
+
+  try {
+    if (selectedVariant.value) {
+      await productVariantService.updateVariant(
+        currentProduct.id,
+        selectedVariant.value.id,
+        currentBusinessId,
+        payload as UpdateProductVariantInput,
+      )
+
+      successMessage.value = 'Product variant updated successfully.'
+    } else {
+      await productVariantService.createVariant(
+        currentProduct.id,
+        currentBusinessId,
+        payload as CreateProductVariantInput,
+      )
+
+      successMessage.value = 'Product variant created successfully.'
+    }
+
+    showVariantForm.value = false
+    selectedVariant.value = null
+
+    // Reload ProductVariantList
+    variantListKey.value++
+  } catch (err) {
+    error.value = err instanceof Error
+      ? err.message
+      : 'Unable to save product variant.'
+  } finally {
+    savingVariant.value = false
   }
 }
 
@@ -465,6 +600,7 @@ watch(
 
     successMessage.value = null
     product.value = null
+    hasExistingVariants.value = false
 
     void loadProduct()
   },
@@ -481,6 +617,7 @@ onBeforeUnmount(() => {
 })
 const {
   $productService: productService,
+  $productVariantService: productVariantService,
   $categoryService,
   $unitService,
 } = useNuxtApp()
@@ -490,45 +627,25 @@ const {
 <template>
   <div class="product-detail-view">
     <header class="page-header">
-      <button
-        type="button"
-        class="back-button"
-        @click="navigateTo('/products')"
-      >
+      <button type="button" class="back-button" @click="navigateTo('/products')">
         <Icon name="lucide:arrow-left" />
         Back to Products
       </button>
 
       <div v-if="product" class="header-actions">
         <template v-if="product.status === 'active'">
-          <button
-            type="button"
-            class="edit-button"
-            :disabled="saving || loadingProductImage"
-            @click="openEditForm"
-          >
+          <button type="button" class="edit-button" :disabled="saving || loadingProductImage" @click="openEditForm">
             <Icon name="lucide:pencil" />
             {{ loadingProductImage ? 'Loading...' : 'Edit Product' }}
           </button>
 
-          <button
-            type="button"
-            class="archive-button"
-            :disabled="saving"
-            @click="openArchiveConfirmation"
-          >
+          <button type="button" class="archive-button" :disabled="saving" @click="openArchiveConfirmation">
             <Icon name="lucide:archive" />
             Archive
           </button>
         </template>
 
-        <button
-          v-else
-          type="button"
-          class="restore-button"
-          :disabled="saving"
-          @click="openRestoreConfirmation"
-        >
+        <button v-else type="button" class="restore-button" :disabled="saving" @click="openRestoreConfirmation">
           <Icon name="lucide:archive-restore" />
           Restore Product
         </button>
@@ -539,11 +656,7 @@ const {
       <Icon name="lucide:check-circle" />
       {{ successMessage }}
 
-      <button
-        type="button"
-        aria-label="Dismiss success message"
-        @click="successMessage = null"
-      >
+      <button type="button" aria-label="Dismiss success message" @click="successMessage = null">
         ×
       </button>
     </div>
@@ -552,11 +665,7 @@ const {
       <Icon name="lucide:alert-circle" />
       {{ error }}
 
-      <button
-        type="button"
-        aria-label="Dismiss error message"
-        @click="error = null"
-      >
+      <button type="button" aria-label="Dismiss error message" @click="error = null">
         ×
       </button>
     </div>
@@ -570,16 +679,9 @@ const {
       <!-- Product image and summary -->
       <section class="product-hero">
         <div class="detail-product-image">
-          <img
-            v-if="detailImageUrl"
-            :src="detailImageUrl"
-            :alt="product.name"
-          />
+          <img v-if="detailImageUrl" :src="detailImageUrl" :alt="product.name" />
 
-          <div
-            v-else-if="loadingDetailImage"
-            class="image-placeholder"
-          >
+          <div v-else-if="loadingDetailImage" class="image-placeholder">
             <Icon name="lucide:loader-circle" class="loading-icon" />
             <span>Loading image...</span>
           </div>
@@ -657,7 +759,7 @@ const {
           </div>
         </section>
 
-        <section class="detail-card">
+        <section v-if="product.type === 'standard'" class="detail-card">
           <h2>Pricing</h2>
 
           <div class="detail-row">
@@ -685,7 +787,7 @@ const {
           </div>
         </section>
 
-        <section class="detail-card">
+        <section v-if="product.type === 'standard'" class="detail-card">
           <h2>Inventory</h2>
 
           <div class="detail-row">
@@ -705,37 +807,30 @@ const {
           <div class="detail-row">
             <span>Stock Status</span>
 
-            <strong
-              :class="{
-                'stock-low': product.currentStock <= product.minimumStock,
-                'stock-normal': product.currentStock > product.minimumStock,
-              }"
-            >
+            <strong :class="{
+              'stock-low': product.currentStock <= product.minimumStock,
+              'stock-normal': product.currentStock > product.minimumStock,
+            }">
               {{
-                product.currentStock <= 0
-                  ? 'Out of Stock'
-                  : product.currentStock <= product.minimumStock
-                    ? 'Low Stock'
-                    : 'In Stock'
-              }}
-            </strong>
+                product.currentStock <= 0 ? 'Out of Stock' : product.currentStock <= product.minimumStock ? 'Low Stock'
+                  : 'In Stock' }} </strong>
           </div>
         </section>
 
-        <section class="detail-card barcode-card">
+        <section v-if="product.type === 'standard'" class="detail-card barcode-card">
           <h2>Barcode</h2>
 
-          <ProductBarcode
-            v-if="product.barcode && product.barcodeType"
-            :value="product.barcode"
-            :type="product.barcodeType"
-          />
+          <ProductBarcode v-if="product.barcode && product.barcodeType" :value="product.barcode"
+            :type="product.barcodeType" />
 
           <p v-else class="empty-barcode">
             No barcode available.
           </p>
         </section>
       </div>
+
+      <ProductVariantList v-if="product.type === 'variant'" :key="variantListKey" :product-id="product.id"
+        :business-id="businessId" @create="openCreateVariantForm" @edit="openEditVariantForm" />
 
       <section class="detail-card timestamps-card">
         <h2>Record Information</h2>
@@ -760,38 +855,21 @@ const {
       <Icon name="lucide:package-x" />
       <p>Product not found.</p>
 
-      <button
-        type="button"
-        class="edit-button"
-        @click="navigateTo('/products')"
-      >
+      <button type="button" class="edit-button" @click="navigateTo('/products')">
         Back to Products
       </button>
     </div>
 
-    <ProductForm
-      v-if="showEditForm && product"
-      :key="product.id"
-      :business-id="businessId"
-      :initial-product="product"
-      :initial-image-url="initialImageUrl"
-      :submitting="saving"
-      :categories="categories"
-      :units="units"
-      @submit="handleUpdateProduct"
-      @cancel="closeEditForm"
-    />
+    <ProductForm v-if="showEditForm && product" :has-existing-variants="hasExistingVariants" :key="product.id"
+      :business-id="businessId" :initial-product="product" :initial-image-url="initialImageUrl" :submitting="saving"
+      :categories="categories" :units="units" @submit="handleUpdateProduct" @cancel="closeEditForm" />
 
-    <ConfirmationDialog
-      v-model="showConfirmation"
-      :title="confirmationTitle"
-      :message="confirmationMessage"
-      :item-name="product?.name ?? ''"
-      :confirm-text="confirmationText"
-      :variant="confirmationVariant"
-      :loading="saving"
-      @confirm="handleConfirmation"
-    />
+    <ProductVariantForm v-if="showVariantForm && product?.type === 'variant'" :product="product as VariantProduct"
+      :variant="selectedVariant" :submitting="savingVariant" @submit="handleVariantSubmit" @cancel="closeVariantForm" />
+
+    <ConfirmationDialog v-model="showConfirmation" :title="confirmationTitle" :message="confirmationMessage"
+      :item-name="product?.name ?? ''" :confirm-text="confirmationText" :variant="confirmationVariant" :loading="saving"
+      @confirm="handleConfirmation" />
   </div>
 </template>
 

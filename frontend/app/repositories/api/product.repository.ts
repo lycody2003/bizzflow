@@ -15,7 +15,7 @@ interface BackendProduct {
   _id: string;
   businessId: string;
   name: string;
-  sku: string;
+  sku: string | null;
   barcode?: string | null;
   barcodeType?: BarcodeType | null;
   description?: string;
@@ -28,19 +28,22 @@ interface BackendProduct {
         isActive?: boolean;
       };
   type?: ProductType;
+  attributeDefinitions?: {
+    name: string;
+    values: string[];
+  }[];
   unit?: {
     _id: string;
     name: string;
     symbol: string;
     isActive?: boolean;
   };
-  costPrice: number;
-  sellingPrice: number;
+  costPrice: number | null;
+  sellingPrice: number | null;
   currency?: ProductCurrency;
-  stockQuantity?: number;
-  minimumStock?: number;
+  stockQuantity?: number | null;
+  minimumStock?: number | null;
   status: ProductStatus;
-
   imageUrl?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -57,13 +60,10 @@ interface ProductListResponse {
 }
 
 function mapProduct(data: BackendProduct): Product {
-  return {
+  const common = {
     id: data._id,
     businessId: String(data.businessId),
     name: data.name,
-    sku: data.sku,
-    barcode: data.barcode ?? null,
-    barcodeType: data.barcodeType ?? null,
     description: data.description ?? "",
     category:
       typeof data.category === "string"
@@ -84,15 +84,49 @@ function mapProduct(data: BackendProduct): Product {
         isActive: data.unit.isActive,
       } satisfies ProductUnit;
     })(),
+    status: data.status,
+    imageUrl: data.imageUrl ?? null,
+    createdAt: data.createdAt,
+    updatedAt: data.updatedAt,
+  };
+
+  if (data.type === "variant") {
+    return {
+      ...common,
+      type: "variant",
+      sku: null,
+      barcode: null,
+      barcodeType: null,
+      costPrice: null,
+      sellingPrice: null,
+      currency: data.currency ?? "USD",
+      currentStock: null,
+      minimumStock: null,
+      attributeDefinitions: data.attributeDefinitions ?? [],
+    };
+  }
+
+  if (
+    typeof data.sku !== "string" ||
+    data.costPrice === null ||
+    data.costPrice === undefined ||
+    data.sellingPrice === null ||
+    data.sellingPrice === undefined
+  ) {
+    throw new Error("Standard product is missing required SKU or price data.");
+  }
+
+  return {
+    ...common,
+    type: "standard",
+    sku: data.sku,
+    barcode: data.barcode ?? null,
+    barcodeType: data.barcodeType ?? null,
     costPrice: data.costPrice,
     sellingPrice: data.sellingPrice,
     currency: data.currency ?? "USD",
     currentStock: data.stockQuantity ?? 0,
     minimumStock: data.minimumStock ?? 0,
-    status: data.status,
-    imageUrl: data.imageUrl ?? null,
-    createdAt: data.createdAt,
-    updatedAt: data.updatedAt,
   };
 }
 
